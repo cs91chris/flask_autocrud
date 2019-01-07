@@ -1,0 +1,14 @@
+{% extends 'admin/master.html' %}
+{% block body %}
+{{ super() }}
+<div class="row-fluid">
+    <h1>Admin Console</h1>
+    <p class="lead">
+        A web interface for your REST API
+    </p>
+    <p>
+        All database tables are listed in the list on the left. This page, the table listing pages.
+    </p>
+    <a class="btn btn-primary" href="/"><i class="icon-arrow-left icon-white"></i> Back</a>
+</div>
+{% endblock body %}
