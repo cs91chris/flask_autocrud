@@ -10,6 +10,7 @@ from .wrapper import resp_csv
 from .wrapper import resp_json
 from .wrapper import no_content
 from .wrapper import response_with_links
+from .wrapper import response_with_location
 
 
 class Service(MethodView):
@@ -82,15 +83,15 @@ class Service(MethodView):
         self._validate_fields(data)
 
         resource = model.query.filter_by(**data).first()
-        if resource:
-            return no_content()
-        else:
+        if not resource:
             resource = model(**data)
+            session.add(resource)
+            session.commit()
+            code = 201
+        else:
+            code = 409
 
-        session.add(model(**data))
-        session.commit()
-
-        return response_with_links(resource, 201)
+        return response_with_location(resource, code)
 
     def put(self, resource_id):
         """
@@ -107,7 +108,6 @@ class Service(MethodView):
         resource = model.query.get(resource_id)
         if resource:
             resource.update(data)
-
             session.merge(resource)
             session.commit()
 
@@ -149,7 +149,10 @@ class Service(MethodView):
                 queryset = queryset.filter(*filters).order_by(*order)
 
         if 'page' in request.args:
-            resources = queryset.paginate(page=int(request.args['page']), per_page=limit).items
+            resources = queryset.paginate(
+                page=int(request.args['page']),
+                per_page=limit
+            ).items
         else:
             queryset = queryset.limit(limit)
             resources = queryset.all()

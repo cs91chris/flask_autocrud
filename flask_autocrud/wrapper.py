@@ -20,17 +20,6 @@ def get_json():
     return req
 
 
-def no_content():
-    """
-
-    :return:
-    """
-    resp = make_response('', 204)
-    del resp.headers['Content-Type']
-    del resp.headers['Content-Length']
-    return resp
-
-
 def list_to_csv(data: list, delimiter=';', quoting=True, qc='"'):
     """
 
@@ -103,4 +92,32 @@ def response_with_links(resource, code=200):
     for link in links.values():
         link_string += ', <{}>; rel=related'.format(link)
 
-    return resource.to_dict(), code, {'Link': link_string}
+    return resource.to_dict(), code, {
+        'Link': link_string
+    }
+
+
+@as_json
+def response_with_location(resource, code=201):
+    """
+
+    :param resource:
+    :param code:
+    :return:
+    """
+    location = resource.links()
+
+    return resource.to_dict(), code, {
+        'Location': location['self']
+    }
+
+
+def no_content():
+    """
+
+    :return:
+    """
+    resp = make_response('', 204)
+    del resp.headers['Content-Type']
+    del resp.headers['Content-Length']
+    return resp
