@@ -56,7 +56,7 @@ Configuration
    endpoint for a resource: ``<endpoint>/<resource>/meta``
 2. ``AUTOCRUD_READ_ONLY``: *(default: False)* enable only http GET
    method
-3. ``AUTOCRUD_BASE_URL``: *(default: ‘/’)* prefix url for resources
+3. ``AUTOCRUD_BASE_URL``: *(default: '/')* prefix url for resources
 4. ``AUTOCRUD_SUBDOMAIN``: *(default: None)* bind autocrud endpoints to
    a subdomain #
 

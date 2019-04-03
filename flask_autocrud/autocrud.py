@@ -82,7 +82,8 @@ class AutoCrud(object):
             for cls in self._app.classes:
                 routes[cls.__model__.__name__] = '{}{{/{}}}'.format(
                     cls.__model__.__url__,
-                    cls.__model__.primary_key())
+                    cls.__model__.primary_key()
+                )
             return routes
 
         self._app.register_blueprint(self._api)
@@ -95,12 +96,16 @@ class AutoCrud(object):
         if self._admin is not None:
             self._admin.add_view(CustomAdminView(cls, self._db.session))
 
-        cls.__url__ = '{}{}'.format(self._app.config['AUTOCRUD_BASE_URL'], cls.__name__.lower())
+        cls.__url__ = '{}{}'.format(
+            self._app.config['AUTOCRUD_BASE_URL'],
+            cls.__name__.lower()
+        )
         cols = list(cls().__table__.primary_key.columns)
 
         service_class = type(
             cls.__name__ + 'Service',
-            (Service,), {
+            (Service,),
+            {
                 '__model__': cls,
                 '__db__': self._db,
                 '__collection_name__': cls.__name__
@@ -142,7 +147,8 @@ class AutoCrud(object):
             endpoint.add_url_rule(
                 cls.__model__.__url__ + '/',
                 view_func=view_func,
-                methods=['POST']
+                methods=['POST'],
+                strict_slashes=False
             )
 
         endpoint.add_url_rule(
@@ -167,4 +173,8 @@ class AutoCrud(object):
         self._app.config.setdefault('JSON_ADD_STATUS', False)
         self._app.config.setdefault('JSON_DECODE_ERROR_MESSAGE', 'Invalid JSON')
 
-        self._api = Blueprint('flask_autocrud', __name__, subdomain=self._app.config['AUTOCRUD_SUBDOMAIN'])
+        self._api = Blueprint(
+            'flask_autocrud',
+            __name__,
+            subdomain=self._app.config['AUTOCRUD_SUBDOMAIN']
+        )

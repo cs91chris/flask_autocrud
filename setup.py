@@ -4,6 +4,7 @@ Flask-AutoCRUD
 
 Automatically generate a RESTful API service for CRUD operation on database
 """
+
 from setuptools import setup
 
 
@@ -12,8 +13,8 @@ with open("README.rst", "r") as fh:
 
 setup(
     name='Flask-AutoCRUD',
-    version='1.0',
-    url='https://github.com/cs91chris/flask-autocrud/',
+    version='1.0.0',
+    url='https://github.com/cs91chris/flask_autocrud/',
     license='MIT',
     author='cs91chris',
     author_email='cs91chris@voidbrain.me',
@@ -26,7 +27,7 @@ setup(
     install_requires=[
         'Flask==1.0.2',
         'Flask-Admin==1.5.3',
-        'Flask-SQLAlchemy==2.1',
+        'Flask-SQLAlchemy==2.3.2',
         'Flask-JSON==0.3.3'
     ],
     classifiers=[

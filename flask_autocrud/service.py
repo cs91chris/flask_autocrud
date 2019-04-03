@@ -156,7 +156,7 @@ class Service(MethodView):
 
         return [r.to_dict() for r in resources]
 
-    def _validate_field(self, data):
+    def _validate_fields(self, data):
         """
 
         :param data:
