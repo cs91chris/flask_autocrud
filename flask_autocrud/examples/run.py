@@ -7,6 +7,7 @@ from flask_sqlalchemy import SQLAlchemy
 
 def main():
     app = Flask(__name__)
+    app.config['SECRET_KEY'] = 'more_difficult_string'
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite:///flask_autocrud/examples/db.sqlite3'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['JSON_ADD_STATUS'] = False

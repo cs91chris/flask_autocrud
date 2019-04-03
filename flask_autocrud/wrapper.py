@@ -63,19 +63,20 @@ def resp_csv(data_list, filename):
 
 
 @as_json
-def resp_json(data, root=None):
+def resp_json(data, root=None, code=200):
     """
 
     :param data:
     :param root:
+    :param code:
     :return:
     """
     if root is not None:
         return {
             str(root): data
-        }
+        }, code
     else:
-        return data
+        return data, code
 
 
 @as_json

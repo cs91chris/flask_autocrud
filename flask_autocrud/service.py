@@ -27,7 +27,9 @@ class Service(MethodView):
         model = self.__model__
         session = self.__db__.session()
 
-        resource = model.query.get_or_404(resource_id)
+        resource = model.query.get(resource_id)
+        if not resource:
+            abort(resp_json({'message': 'Not Found'}, code=404))
 
         session.delete(resource)
         session.commit()
@@ -48,7 +50,9 @@ class Service(MethodView):
             response = resp_csv if 'export' in request.args else resp_json
             return response(self._all_resources(), self.__collection_name__)
         else:
-            resource = model.query.get_or_404(resource_id)
+            resource = model.query.get(resource_id)
+            if not resource:
+                abort(resp_json({'message': 'Not Found'}, code=404))
             return response_with_links(resource)
 
     def patch(self, resource_id):
@@ -63,9 +67,11 @@ class Service(MethodView):
         data = get_json()
         self._validate_fields(data)
 
-        resource = model.query.get_or_404(resource_id)
-        resource.update(data)
+        resource = model.query.get(resource_id)
+        if not resource:
+            abort(resp_json({'message': 'Not Found'}, code=404))
 
+        resource.update(data)
         session.merge(resource)
         session.commit()
 
@@ -131,8 +137,7 @@ class Service(MethodView):
 
         args = {k: v for (k, v) in request.args.items() if k not in ('page', 'export')}
         if args:
-            order = []
-            filters = []
+            order = filters = invalid = []
 
             for k, v in args.items():
                 if v.startswith('%'):
@@ -145,7 +150,11 @@ class Service(MethodView):
                 elif hasattr(model, k):
                     filters.append(getattr(model, k) == v)
                 else:
-                    abort(400, 'Invalid field [{}]'.format(k))
+                    invalid.append(k)
+
+                if len(invalid):
+                    abort(resp_json({'invalid': invalid}, code=400))
+
                 queryset = queryset.filter(*filters).order_by(*order)
 
         if 'page' in request.args:
@@ -165,11 +174,12 @@ class Service(MethodView):
         :param data:
         """
         model = self.__model__
-
-        for k in data:
-            if k not in (model.required() + model.optional()):
-                abort(400, 'Unknown field [{}]'.format(k))
-
+        fields = model.required() + model.optional()
+        unknown = [k for k in data if k not in fields]
         missing = set(model.required()) - set(data)
-        if missing:
-            abort(400, 'The following required fields are missing: ' + ', '.join(missing))
+
+        if len(unknown) or len(missing):
+            abort(resp_json({
+                'unknown': unknown,
+                'missing': list(missing)
+            }, code=422))
