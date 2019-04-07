@@ -28,7 +28,6 @@ Example usage
 
    from flask import Flask
 
-   from flask_admin import Admin
    from flask_autocrud import AutoCrud
    from flask_sqlalchemy import SQLAlchemy
 
@@ -36,16 +35,17 @@ Example usage
    app = Flask(__name__)
    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite:///db.sqlite3'
    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-   app.config['AUTOCRUD_METADATA_ENABLED'] = False
+   app.config['AUTOCRUD_METADATA_ENABLED'] = True
 
    db = SQLAlchemy(app)
-   admin = Admin(app, base_template='layout.html', template_mode='bootstrap3')
-   AutoCrud(db, app, admin=admin)
+   AutoCrud(app, db)
 
    app.run(debug=True)
 
 Go to http://127.0.0.1:5000/ and see all available resources with its
-endpoint
+endpoint. NOTE: you must set SQLALCHEMY_DATABASE_URI with your database.
+
+If you want to see an example use with Flask-Admin see in example folder.
 
 .. _section-2:
 
