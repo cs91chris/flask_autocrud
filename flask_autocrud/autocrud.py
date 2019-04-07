@@ -12,7 +12,7 @@ from flask_autocrud.model import CustomAdminView
 
 
 class AutoCrud(object):
-    def __init__(self, db, app=None, admin=None,
+    def __init__(self, app=None, db=None, admin=None,
                  exclude_tables=None, user_models=None, schema=None):
         """
 
@@ -23,33 +23,47 @@ class AutoCrud(object):
         :param user_models:
         :param schema:
         """
-        self._automap_model = automap_base(
-            declarative_base(cls=(db.Model, Model))
-        )
-
         self._db = db
         self._admin = admin
         self._api = None
-
+        self._automap_model = None
         self._exclude_tables = exclude_tables
         self._user_models = user_models
         self._schema = schema
 
         if app is not None:
+            if db is None:
+                raise AttributeError(
+                    "You can not create AutoCrud without an SQLAlchemy instance. "
+                    "Please consider to use the init_app method instead"
+                )
             self._app = app
-            self.init_app(self._app)
+            self.init_app(self._app, self._db)
         else:
             self._app = None
 
-    def init_app(self, app):
+    def init_app(self, app, db, admin=None,
+                 exclude_tables=None, user_models=None, schema=None):
         """
 
         :param app:
+        :param db:
+        :param admin:
+        :param exclude_tables:
+        :param user_models:
+        :param schema:
         :return:
         """
         self._app = app
-        self._app.classes = []
+        self._db = db
+        self._admin = admin
 
+        self._exclude_tables = exclude_tables
+        self._user_models = user_models
+        self._schema = schema
+
+        self._app.classes = []
+        self._automap_model = automap_base(declarative_base(cls=(db.Model, Model)))
         self._config()
 
         with self._app.app_context():

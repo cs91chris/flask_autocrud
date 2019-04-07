@@ -12,10 +12,10 @@ def main():
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['JSON_ADD_STATUS'] = False
 
+    autocrud = AutoCrud()
     db = SQLAlchemy(app)
     admin = Admin(app, base_template='layout.html', template_mode='bootstrap3')
-    AutoCrud(db, app, admin)
-
+    autocrud.init_app(app, db, admin)
     app.run(debug=True)
 
 
