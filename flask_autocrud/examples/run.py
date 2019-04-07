@@ -3,6 +3,14 @@ from flask import Flask
 from flask_admin import Admin
 from flask_autocrud import AutoCrud
 from flask_sqlalchemy import SQLAlchemy
+from flask_admin.contrib.sqla import ModelView
+
+
+class CustomAdminView(ModelView):
+    list_template = 'list.html'
+    create_template = 'create.html'
+    edit_template = 'edit.html'
+    column_display_pk = True
 
 
 def main():
@@ -15,7 +23,7 @@ def main():
     autocrud = AutoCrud()
     db = SQLAlchemy(app)
     admin = Admin(app, base_template='layout.html', template_mode='bootstrap3')
-    autocrud.init_app(app, db, admin)
+    autocrud.init_app(app, db, admin, CustomAdminView)
     app.run(debug=True)
 
 

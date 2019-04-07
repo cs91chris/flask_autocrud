@@ -3,14 +3,6 @@ import datetime
 from decimal import Decimal
 
 from sqlalchemy.inspection import inspect
-from flask_admin.contrib.sqla import ModelView
-
-
-class CustomAdminView(ModelView):
-    list_template = 'list.html'
-    create_template = 'create.html'
-    edit_template = 'edit.html'
-    column_display_pk = True
 
 
 class Model(object):
@@ -27,7 +19,7 @@ class Model(object):
         'DELETE',
         'HEAD',
         'OPTIONS'
-        }
+    }
 
     def __str__(self):
         """

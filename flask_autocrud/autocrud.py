@@ -8,11 +8,10 @@ from sqlalchemy.ext.declarative import declarative_base
 
 from flask_autocrud.model import Model
 from flask_autocrud.service import Service
-from flask_autocrud.model import CustomAdminView
 
 
 class AutoCrud(object):
-    def __init__(self, app=None, db=None, admin=None,
+    def __init__(self, app=None, db=None, admin=None, view=None,
                  exclude_tables=None, user_models=None, schema=None):
         """
 
@@ -25,6 +24,7 @@ class AutoCrud(object):
         """
         self._db = db
         self._admin = admin
+        self._view = view
         self._api = None
         self._automap_model = None
         self._exclude_tables = exclude_tables
@@ -32,23 +32,19 @@ class AutoCrud(object):
         self._schema = schema
 
         if app is not None:
-            if db is None:
-                raise AttributeError(
-                    "You can not create AutoCrud without an SQLAlchemy instance. "
-                    "Please consider to use the init_app method instead"
-                )
             self._app = app
-            self.init_app(self._app, self._db)
+            self.init_app(self._app, self._db, self._admin, self._view)
         else:
             self._app = None
 
-    def init_app(self, app, db, admin=None,
+    def init_app(self, app, db, admin=None, view=None,
                  exclude_tables=None, user_models=None, schema=None):
         """
 
         :param app:
         :param db:
         :param admin:
+        :param view:
         :param exclude_tables:
         :param user_models:
         :param schema:
@@ -57,10 +53,22 @@ class AutoCrud(object):
         self._app = app
         self._db = db
         self._admin = admin
-
+        self._view = view
         self._exclude_tables = exclude_tables
         self._user_models = user_models
         self._schema = schema
+
+        if self._db is None:
+            raise AttributeError("""
+                You can not create AutoCrud without an SQLAlchemy instance.
+                Please consider to use the init_app method instead
+            """)
+
+        if self._admin and not self._view:
+            raise AttributeError("""
+                You can not create AutoCrud with Admin but without ModelView instance.
+                admin and view arguments are required together
+            """)
 
         self._app.classes = []
         self._automap_model = automap_base(declarative_base(cls=(db.Model, Model)))
@@ -108,7 +116,7 @@ class AutoCrud(object):
         :param cls:
         """
         if self._admin is not None:
-            self._admin.add_view(CustomAdminView(cls, self._db.session))
+            self._admin.add_view(self._view(cls, self._db.session))
 
         cls.__url__ = '{}{}'.format(
             self._app.config['AUTOCRUD_BASE_URL'],
