@@ -34,7 +34,7 @@ def list_to_csv(data: list, delimiter=';', quoting=True, qc='"'):
 
     w = csv.DictWriter(
         output
-        ,data[0].keys()
+        ,data[0].keys() if data else ''
         ,dialect='excel-tab'
         ,delimiter=delimiter
         ,quotechar=qc, quoting=q

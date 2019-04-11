@@ -1,8 +1,8 @@
 from flask import abort
 from flask import request
 
-from sqlalchemy import asc
-from sqlalchemy import desc
+from sqlalchemy import asc as ASC
+from sqlalchemy import desc as DESC
 from flask.views import MethodView
 
 from .wrapper import get_json
@@ -48,11 +48,23 @@ class Service(MethodView):
                 return resp_json(model.description())
 
             response = resp_csv if 'export' in request.args else resp_json
-            return response(self._all_resources(), self.__collection_name__)
+            queryset, limit = self._parsing_query_string()
+
+            if 'page' in request.args:
+                resources = queryset.paginate(
+                    page=int(request.args['page']),
+                    per_page=limit
+                ).items
+            else:
+                queryset = queryset.limit(limit)
+                resources = queryset.all()
+
+            return response([r.to_dict() for r in resources], self.__collection_name__)
         else:
             resource = model.query.get(resource_id)
             if not resource:
                 abort(resp_json({'message': 'Not Found'}, code=404))
+
             return response_with_links(resource)
 
     def patch(self, resource_id):
@@ -131,33 +143,7 @@ class Service(MethodView):
 
         :return:
         """
-        limit = None
-        model = self.__model__
-        queryset = model.query
-
-        args = {k: v for (k, v) in request.args.items() if k not in ('page', 'export')}
-        if args:
-            order = []
-            filters = []
-            invalid = []
-
-            for k, v in args.items():
-                if v.startswith('%'):
-                    filters.append(getattr(model, k).like(str(v), escape='/'))
-                elif k == 'sort':
-                    direction = desc if v.startswith('-') else asc
-                    order.append(direction(getattr(model, v.lstrip('-'))))
-                elif k == 'limit':
-                    limit = int(v)
-                elif hasattr(model, k):
-                    filters.append(getattr(model, k) == v)
-                else:
-                    invalid.append(k)
-
-                if len(invalid):
-                    abort(resp_json({'invalid': invalid}, code=400))
-
-                queryset = queryset.filter(*filters).order_by(*order)
+        queryset, limit = self._parsing_query_string()
 
         if 'page' in request.args:
             resources = queryset.paginate(
@@ -187,3 +173,51 @@ class Service(MethodView):
                     'missing': list(missing)
                 }, code=422)
             )
+
+    def _parsing_query_string(self):
+        """
+
+        :return:
+        """
+        limit = None
+        order = []
+        filters = []
+        invalid = []
+        model = self.__model__
+        queryset = model.query
+
+        for k, v in request.args.items():
+            if k in ('page', 'export'):
+                continue
+
+            if hasattr(model, k):
+                items = v.split(';')
+                if len(items) > 1:
+                    if items[0].startswith('!'):
+                        items[0] = items[0].lstrip('!')
+                        in_statement = ~getattr(model, k).in_(items)
+                    else:
+                        in_statement = getattr(model, k).in_(items)
+                    filters.append(in_statement)
+                elif v.startswith('%'):
+                    filters.append(getattr(model, k).like(str(v.lstrip('%')), escape='/'))
+                else:
+                    filters.append(
+                        getattr(model, k) != (None if v == '!null' else v.lstrip('!')) if v.startswith('!')
+                        else getattr(model, k) == (None if v == 'null' else v.lstrip('\\'))
+                    )
+            elif k == 'sort':
+                for items in v.split(';'):
+                    direction = DESC if items.startswith('-') else ASC
+                    order.append(direction(getattr(model, items.lstrip('-'))))
+            elif k == 'limit':
+                limit = int(v)
+            else:
+                invalid.append(k)
+
+            queryset = queryset.filter(*filters).order_by(*order)
+
+        if len(invalid):
+            abort(resp_json({'invalid': invalid}, code=400))
+
+        return queryset, limit
