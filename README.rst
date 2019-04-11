@@ -49,6 +49,23 @@ If you want to see an example use with Flask-Admin see in example folder.
 
 .. _section-2:
 
+Filtering and Sorting
+^^^^^^^^^^^^^^^^^^^^^
+
+Add filters as query string parameters, they are used in AND.
+    - null value: ``null``
+    - in operator: list separated by ``;``
+    - not operator: ``!`` means: not equal, not null, not in
+    - like operator: ``%`` for example: %%test%, %test%.
+      NOTE first % are not used in expression, it only indicated that value must be used with like operator.
+
+At this time OR operator are not implemented
+
+Sorting is implemented with ``sort`` parameter. The value is a list of field separated by `;`
+You can prepend ``-`` to reverse order.
+
+.. _section-3:
+
 Configuration
 ^^^^^^^^^^^^^
 
@@ -58,6 +75,6 @@ Configuration
    method
 3. ``AUTOCRUD_BASE_URL``: *(default: '/')* prefix url for resources
 4. ``AUTOCRUD_SUBDOMAIN``: *(default: None)* bind autocrud endpoints to
-   a subdomain #
+   a subdomain
 
 License MIT
