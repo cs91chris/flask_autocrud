@@ -137,7 +137,9 @@ class Service(MethodView):
 
         args = {k: v for (k, v) in request.args.items() if k not in ('page', 'export')}
         if args:
-            order = filters = invalid = []
+            order = []
+            filters = []
+            invalid = []
 
             for k, v in args.items():
                 if v.startswith('%'):
@@ -179,7 +181,9 @@ class Service(MethodView):
         missing = set(model.required()) - set(data)
 
         if len(unknown) or len(missing):
-            abort(resp_json({
-                'unknown': unknown,
-                'missing': list(missing)
-            }, code=422))
+            abort(
+                resp_json({
+                    'unknown': unknown,
+                    'missing': list(missing)
+                }, code=422)
+            )
