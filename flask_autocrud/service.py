@@ -54,7 +54,8 @@ class Service(MethodView):
         if request.path.endswith('meta'):
             return resp_json(model.description())
 
-        queryset, limit = self._parsing_query_string()
+        limit = request.args.get('limit')
+        queryset = self._parsing_query_string()
         resources = queryset.paginate(
             page=int(request.args['page']),
             per_page=limit
@@ -175,7 +176,6 @@ class Service(MethodView):
 
         :return:
         """
-        limit = None
         order = []
         filters = []
         invalid = []
@@ -183,7 +183,7 @@ class Service(MethodView):
         queryset = model.query
 
         for k, v in request.args.items():
-            if k in ('page', 'export', 'fields'):
+            if k in ('page', 'export', 'fields', 'limit'):
                 continue
 
             if hasattr(model, k):
@@ -203,15 +203,17 @@ class Service(MethodView):
                         else getattr(model, k) == (None if v == 'null' else v.lstrip('\\'))
                     )
             elif k == 'sort':
-                for items in v.split(';'):
-                    direction = DESC if items.startswith('-') else ASC
-                    order.append(direction(getattr(model, items.lstrip('-'))))
-            elif k == 'limit':
-                limit = int(v)
+                for item in v.split(';'):
+                    direction = DESC if item.startswith('-') else ASC
+                    item = item.lstrip('-')
+                    if not hasattr(model, item):
+                        invalid.append(item)
+                    else:
+                        order.append(direction(getattr(model, item)))
             else:
                 invalid.append(k)
 
         if len(invalid):
             abort(resp_json({'invalid': invalid}, code=400))
 
-        return queryset.filter(*filters).order_by(*order), limit
+        return queryset.filter(*filters).order_by(*order)
