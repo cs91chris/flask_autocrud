@@ -8,6 +8,8 @@ from flask import make_response
 
 from flask_json import as_json
 
+from .config import HTTP_STATUS
+
 
 def get_json():
     """
@@ -16,7 +18,7 @@ def get_json():
     """
     req = request.get_json()
     if not req:
-        abort(400, 'No JSON given')
+        abort(HTTP_STATUS.BAD_REQUEST, 'No JSON given')
     return req
 
 
@@ -37,7 +39,8 @@ def list_to_csv(data: list, delimiter=';', quoting=True, qc='"'):
         ,data[0].keys() if data else ''
         ,dialect='excel-tab'
         ,delimiter=delimiter
-        ,quotechar=qc, quoting=q
+        ,quotechar=qc
+        ,quoting=q
     )
     w.writeheader()
     w.writerows(data)
@@ -63,7 +66,7 @@ def resp_csv(data_list, filename):
 
 
 @as_json
-def resp_json(data, root=None, code=200):
+def resp_json(data, root=None, code=HTTP_STATUS.SUCCESS):
     """
 
     :param data:
@@ -80,7 +83,7 @@ def resp_json(data, root=None, code=200):
 
 
 @as_json
-def response_with_links(resource, code=200):
+def response_with_links(resource, code=HTTP_STATUS.SUCCESS):
     """
 
     :param resource:
@@ -99,7 +102,7 @@ def response_with_links(resource, code=200):
 
 
 @as_json
-def response_with_location(resource, code=201):
+def response_with_location(resource, code=HTTP_STATUS.CREATED):
     """
 
     :param resource:
@@ -118,7 +121,7 @@ def no_content():
 
     :return:
     """
-    resp = make_response('', 204)
+    resp = make_response('', HTTP_STATUS.NO_CONTENT)
     del resp.headers['Content-Type']
     del resp.headers['Content-Length']
     return resp

@@ -4,22 +4,15 @@ from decimal import Decimal
 
 from sqlalchemy.inspection import inspect
 
+from .config import ALLOWED_METHODS
+from .config import MODEL_VERSION
+
 
 class Model(object):
-    __version__ = '1'
-
     __url__ = None
     __table__ = None
-
-    __methods__ = {
-        'GET',
-        'POST',
-        'PUT',
-        'PATCH',
-        'DELETE',
-        'HEAD',
-        'OPTIONS'
-    }
+    __version__ = MODEL_VERSION
+    __methods__ = ALLOWED_METHODS
 
     def __str__(self):
         """
