@@ -44,27 +44,27 @@ def parsing_query_string(model):
     for k, v in request.args.items():
         if k in ARGUMENT.STATIC.__dict__.keys():
             continue
-
         if hasattr(model, k):
             attribute = getattr(model, k)
-            items = v.split(GRAMMAR.SEP)
 
-            if len(items) > 1:
-                if items[0].startswith(GRAMMAR.NOT):
-                    items[0] = items[0].lstrip(GRAMMAR.NOT)
-                    in_statement = ~attribute.in_(items)
-                else:
-                    in_statement = attribute.in_(items)
-                filters.append(in_statement)
-
+            if v.startswith(GRAMMAR.NOT_LIKE):
+                filters.append(attribute.notilike(v[2:], escape='/'))
             elif v.startswith(GRAMMAR.LIKE):
-                filters.append(attribute.like(str(v.lstrip(GRAMMAR.LIKE)), escape='/'))
-
+                filters.append(attribute.ilike(v[1:], escape='/'))
             else:
-                if v.startswith(GRAMMAR.NOT):
-                    filters.append(attribute != (None if v == GRAMMAR.NOT_NULL else v.lstrip(GRAMMAR.NOT)))
+                items = v.split(GRAMMAR.SEP)
+                if len(items) > 1:
+                    if items[0].startswith(GRAMMAR.NOT):
+                        items[0] = items[0].lstrip(GRAMMAR.NOT)
+                        in_statement = ~attribute.in_(items)
+                    else:
+                        in_statement = attribute.in_(items)
+                    filters.append(in_statement)
                 else:
-                    filters.append(attribute == (None if v == GRAMMAR.NULL else v.lstrip('\\')))
+                    if v.startswith(GRAMMAR.NOT):
+                        filters.append(attribute != (None if v == GRAMMAR.NOT_NULL else v.lstrip(GRAMMAR.NOT)))
+                    else:
+                        filters.append(attribute == (None if v == GRAMMAR.NULL else v.lstrip('\\')))
 
         elif k == ARGUMENT.DYNAMIC.sort:
             for item in v.split(GRAMMAR.NOT):

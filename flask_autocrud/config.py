@@ -5,6 +5,7 @@ class GRAMMAR:
     NULL = 'null'
     LIKE = '%'
     NOT_NULL = NOT + NULL
+    NOT_LIKE = NOT + LIKE
 
 
 class ARGUMENT:
