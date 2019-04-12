@@ -41,31 +41,45 @@ class Service(MethodView):
         :param resource_id:
         :return:
         """
+        response = []
         model = self.__model__
 
-        if resource_id is None:
-            if request.path.endswith('meta'):
-                return resp_json(model.description())
-
-            response = resp_csv if 'export' in request.args else resp_json
-            queryset, limit = self._parsing_query_string()
-
-            if 'page' in request.args:
-                resources = queryset.paginate(
-                    page=int(request.args['page']),
-                    per_page=limit
-                ).items
-            else:
-                queryset = queryset.limit(limit)
-                resources = queryset.all()
-
-            return response([r.to_dict() for r in resources], self.__collection_name__)
-        else:
+        if resource_id:
             resource = model.query.get(resource_id)
             if not resource:
                 abort(resp_json({'message': 'Not Found'}, code=404))
 
             return response_with_links(resource)
+
+        if request.path.endswith('meta'):
+            return resp_json(model.description())
+
+        queryset, limit = self._parsing_query_string()
+        resources = queryset.paginate(
+            page=int(request.args['page']),
+            per_page=limit
+        ).items if 'page' in request.args else queryset.limit(limit).all()
+
+        for r in resources:
+            item = r.to_dict()
+            item_keys = item.keys()
+            fields = request.args.get('fields')
+
+            if fields:
+                field_list = set(fields.split(';'))
+                if not field_list.issubset(item_keys):
+                    abort(
+                        resp_json({
+                            'invalid': list(field_list - item_keys)
+                        }, code=400)
+                    )
+
+                for k in set(item_keys) - field_list:
+                    item.pop(k)
+            response.append(item)
+
+        response_builder = resp_csv if 'export' in request.args else resp_json
+        return response_builder(response, self.__collection_name__)
 
     def patch(self, resource_id):
         """
@@ -138,24 +152,6 @@ class Service(MethodView):
 
         return response_with_links(resource, 201)
 
-    def _all_resources(self):
-        """
-
-        :return:
-        """
-        queryset, limit = self._parsing_query_string()
-
-        if 'page' in request.args:
-            resources = queryset.paginate(
-                page=int(request.args['page']),
-                per_page=limit
-            ).items
-        else:
-            queryset = queryset.limit(limit)
-            resources = queryset.all()
-
-        return [r.to_dict() for r in resources]
-
     def _validate_fields(self, data):
         """
 
@@ -187,7 +183,7 @@ class Service(MethodView):
         queryset = model.query
 
         for k, v in request.args.items():
-            if k in ('page', 'export'):
+            if k in ('page', 'export', 'fields'):
                 continue
 
             if hasattr(model, k):
@@ -215,9 +211,7 @@ class Service(MethodView):
             else:
                 invalid.append(k)
 
-            queryset = queryset.filter(*filters).order_by(*order)
-
         if len(invalid):
             abort(resp_json({'invalid': invalid}, code=400))
 
-        return queryset, limit
+        return queryset.filter(*filters).order_by(*order), limit
