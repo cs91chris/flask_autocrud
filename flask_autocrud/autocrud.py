@@ -156,12 +156,14 @@ class AutoCrud(object):
                 cls.__model__.__url__ + '/',
                 defaults={'resource_id': None},
                 view_func=view_func,
+                strict_slashes=False,
                 methods=['GET']
             )
             if self._app.config['AUTOCRUD_METADATA_ENABLED'] is True:
                 endpoint.add_url_rule(
                     '{resource}/meta'.format(resource=cls.__model__.__url__),
                     view_func=view_func,
+                    strict_slashes=False,
                     methods=['GET']
                 )
 
@@ -180,6 +182,7 @@ class AutoCrud(object):
                 pk_type=primary_key_type
             ),
             view_func=view_func,
+            strict_slashes=False,
             methods=methods - {'POST'}
         )
 
