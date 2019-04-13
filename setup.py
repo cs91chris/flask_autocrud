@@ -7,13 +7,16 @@ Automatically generate a RESTful API service for CRUD operation on database
 
 from setuptools import setup
 
+from flask_autocrud import __version__
+
 
 with open("README.rst", "r") as fh:
     long_description = fh.read()
 
+
 setup(
     name='Flask-AutoCRUD',
-    version='1.1.2',
+    version=__version__,
     url='https://github.com/cs91chris/flask_autocrud/',
     license='MIT',
     author='cs91chris',
