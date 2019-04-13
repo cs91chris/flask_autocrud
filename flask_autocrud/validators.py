@@ -41,9 +41,22 @@ def parsing_query_string(model):
     filters = []
     invalid = []
 
+    try:
+        page = request.args.get(ARGUMENT.STATIC.page)
+        int(page) if page else None
+    except ValueError:
+        invalid.append(ARGUMENT.STATIC.page)
+
+    try:
+        limit = request.args.get(ARGUMENT.STATIC.limit)
+        int(limit) if limit else None
+    except ValueError:
+        invalid.append(ARGUMENT.STATIC.limit)
+
     for k, v in request.args.items():
         if k in ARGUMENT.STATIC.__dict__.keys():
             continue
+
         if hasattr(model, k):
             attribute = getattr(model, k)
 

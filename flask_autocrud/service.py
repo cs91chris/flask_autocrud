@@ -64,7 +64,10 @@ class Service(MethodView):
         fields, statement = parsing_query_string(model)
 
         if page is not None:
-            resources = statement.paginate(page=page, per_page=limit).items
+            resources = statement.paginate(
+                page=int(page) if page else None,
+                per_page=int(limit) if limit else None
+            ).items
         else:
             resources = statement.limit(limit).all()
 
