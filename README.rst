@@ -56,10 +56,14 @@ Add filters as query string parameters, they are used in AND.
     - null value: ``null``
     - in operator: list separated by ``;``
     - not operator: ``!`` means: not equal, not null, not in
-    - like operator: ``%`` for example: %%test%, %test%.
+    - like operator: ``%`` for example: %%test%, %test% or %%test.
       NOTE first % are not used in expression, it only indicated that value must be used with like operator.
 
-At this time OR operator are not implemented
+NOTE: At this time OR operator are not implemented
+
+Use ``fields`` parameter to get only the fields listes as value, separated by ``;``.
+
+Use ``export`` parameter to export data into csv format.
 
 Sorting is implemented with ``sort`` parameter. The value is a list of field separated by `;`
 You can prepend ``-`` to reverse order.
