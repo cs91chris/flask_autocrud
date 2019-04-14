@@ -41,3 +41,28 @@ ALLOWED_METHODS = {
 }
 
 MODEL_VERSION = '1'
+
+
+MESSAGES = {
+    'DB_NOT_NULL': """
+        You can not create AutoCrud without an SQLAlchemy instance.
+        Please consider to use the init_app method instead
+    """,
+    'VIEW_NOT_NULL': """
+        You can not create AutoCrud with Admin but without ModelView instance.
+        admin and view arguments are required together
+    """
+}
+
+
+def set_default_config(app):
+    """
+
+    :param app:
+    """
+    app.config.setdefault('AUTOCRUD_METADATA_ENABLED', True)
+    app.config.setdefault('AUTOCRUD_READ_ONLY', False)
+    app.config.setdefault('AUTOCRUD_BASE_URL', '')
+    app.config.setdefault('AUTOCRUD_RESOURCES_URL', '/resources')
+    app.config.setdefault('AUTOCRUD_SUBDOMAIN', None)
+    app.config.setdefault('AUTOCRUD_RESOURCES_URL_ENABLED', True)

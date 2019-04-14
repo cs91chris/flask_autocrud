@@ -42,7 +42,7 @@ Example usage
 
    app.run(debug=True)
 
-Go to http://127.0.0.1:5000/ and see all available resources with its
+Go to http://127.0.0.1:5000/resources and see all available resources with its
 endpoint. NOTE: you must set SQLALCHEMY_DATABASE_URI with your database.
 
 If you want to see an example use with Flask-Admin see in example folder.
@@ -86,7 +86,9 @@ Configuration
 
 1. ``AUTOCRUD_METADATA_ENABLED``: *(default: True)* enable metadata endpoint for a resource: ``<endpoint>/<resource>/meta``
 2. ``AUTOCRUD_READ_ONLY``: *(default: False)* enable only http GET method
-3. ``AUTOCRUD_BASE_URL``: *(default: '/')* prefix url for resources
-4. ``AUTOCRUD_SUBDOMAIN``: *(default: None)* bind autocrud endpoints to a subdomain
+3. ``AUTOCRUD_BASE_URL``: *(default: '')* prefix url for resources
+4. ``AUTOCRUD_RESOURCES_URL``: *(default: '/resources')* url for all available resources
+5. ``AUTOCRUD_RESOURCES_URL_ENABLED``: *(default: True)* enable route for resources list
+6. ``AUTOCRUD_SUBDOMAIN``: *(default: None)* bind autocrud endpoints to a subdomain
 
 License MIT
