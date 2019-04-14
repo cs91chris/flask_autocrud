@@ -70,7 +70,7 @@ class AutoCrud(object):
                 admin and view arguments are required together
             """)
 
-        self._app.classes = []
+        self._app.classes = {}
         self._automap_model = automap_base(declarative_base(cls=(db.Model, Model)))
         self._config()
 
@@ -101,8 +101,8 @@ class AutoCrud(object):
             :return:
             """
             routes = {}
-            for cls in self._app.classes:
-                routes[cls.__model__.__name__] = '{}{{/{}}}'.format(
+            for name, cls in self._app.classes.items():
+                routes[name] = '{}{{/{}}}'.format(
                     cls.__model__.__url__,
                     cls.__model__.primary_key()
                 )
@@ -146,8 +146,8 @@ class AutoCrud(object):
 
         cls = service_class
         endpoint = self._api
-        self._app.classes.append(cls)
 
+        self._app.classes.update({cls.__model__.__name__: cls})
         view_func = cls.as_view(service_class.__name__.lower())
         methods = set(cls.__model__.__methods__)
 
