@@ -1,6 +1,4 @@
-from flask import abort
 from flask import request
-
 from flask.views import MethodView
 
 from .wrapper import get_json
@@ -12,7 +10,6 @@ from .wrapper import response_with_location
 
 from .validators import validate_entity
 from .validators import parsing_query_string
-
 
 from .config import ARGUMENT
 from .config import HTTP_STATUS
@@ -34,7 +31,7 @@ class Service(MethodView):
 
         resource = model.query.get(resource_id)
         if not resource:
-            abort(resp_json({'message': 'Not Found'}, code=HTTP_STATUS.NOT_FOUND))
+            return resp_json({'message': 'Not Found'}, code=HTTP_STATUS.NOT_FOUND)
 
         session.delete(resource)
         session.commit()
@@ -50,12 +47,13 @@ class Service(MethodView):
         model = self.__model__
         page = request.args.get(ARGUMENT.STATIC.page)
         limit = request.args.get(ARGUMENT.STATIC.limit)
-        export = request.args.get(ARGUMENT.STATIC.export)
+        export = True if ARGUMENT.STATIC.export in request.args else False
+        extended = True if ARGUMENT.STATIC.extended in request.args else False
 
         if resource_id is not None:
             resource = model.query.get(resource_id)
             if not resource:
-                abort(resp_json({'message': 'Not Found'}, code=HTTP_STATUS.NOT_FOUND))
+                return resp_json({'message': 'Not Found'}, code=HTTP_STATUS.NOT_FOUND)
             return response_with_links(resource)
 
         if request.path.endswith('meta'):
@@ -72,7 +70,7 @@ class Service(MethodView):
             resources = statement.limit(limit).all()
 
         for r in resources:
-            item = r.to_dict()
+            item = r.to_dict(True if extended else False)
             item_keys = item.keys()
             if fields:
                 for k in set(item_keys) - set(fields):
@@ -96,7 +94,7 @@ class Service(MethodView):
 
         resource = model.query.get(resource_id)
         if not resource:
-            abort(resp_json({'message': 'Not Found'}, code=HTTP_STATUS.NOT_FOUND))
+            return resp_json({'message': 'Not Found'}, code=HTTP_STATUS.NOT_FOUND)
 
         resource.update(data)
         session.merge(resource)

@@ -54,18 +54,37 @@ class Model(object):
         """
         return list(cls.__table__.primary_key.columns)[0].key
 
-    def to_dict(self):
+    def to_dict(self, rel=False):
         """
 
+        :param rel:
         :return:
         """
         result_dict = {}
         for c in self.__table__.columns.keys():
             value = result_dict[c] = getattr(self, c, None)
+
             if isinstance(value, Decimal):
                 result_dict[c] = float(result_dict[c])
             elif isinstance(value, datetime.datetime):
                 result_dict[c] = value.isoformat()
+
+        if rel is True:
+            for r in inspect(self.__class__).relationships:
+                if 'collection' not in r.key:
+                    ref_key = r.key
+                    instance = getattr(self, r.key)
+                    if instance:
+                        result_dict.update({
+                            ref_key: instance.to_dict()
+                        })
+                else:
+                    r_key = r.key.split('_')[0] + 'List'
+                    result_dict.update({r_key: []})
+
+                    for i in getattr(self, r.key):
+                        result_dict.get(r_key).append(i.to_dict())
+
         return result_dict
 
     def links(self):

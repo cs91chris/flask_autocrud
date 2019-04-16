@@ -13,6 +13,7 @@ class ARGUMENT:
         page = 'page'
         limit = 'limit'
         export = 'export'
+        extended = 'extended'
 
     class DYNAMIC:
         sort = 'sort'
