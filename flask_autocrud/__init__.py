@@ -1,4 +1,3 @@
-from flask_autocrud.autocrud import AutoCrud
+from .version import *
 
-from .version import __version_info__
-from .version import __version__
+from flask_autocrud.autocrud import AutoCrud

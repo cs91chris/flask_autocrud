@@ -8,7 +8,10 @@ Automatically generate a RESTful API service for CRUD operation on database
 from setuptools import setup
 
 from flask_autocrud import __version__
+from flask_autocrud import __author__
 
+author, email = __author__.split()
+email = email.lstrip('<').rstrip('>')
 
 with open("README.rst", "r") as fh:
     long_description = fh.read()
@@ -19,8 +22,8 @@ setup(
     version=__version__,
     url='https://github.com/cs91chris/flask_autocrud/',
     license='MIT',
-    author='cs91chris',
-    author_email='cs91chris@voidbrain.me',
+    author=author,
+    author_email=email,
     description='Automatically generate a RESTful API service for CRUD operation on database',
     long_description=long_description,
     packages=['flask_autocrud'],
@@ -31,7 +34,8 @@ setup(
         'Flask==1.0.2',
         'Flask-Admin==1.5.3',
         'Flask-SQLAlchemy==2.3.2',
-        'Flask-JSON==0.3.3'
+        'Flask-JSON==0.3.3',
+        'sqlalchemy-filters==0.10.0'
     ],
     classifiers=[
         'Environment :: Web Environment',

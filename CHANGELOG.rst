@@ -1,6 +1,16 @@
 Release Notes
 ^^^^^^^^^^^^^
 
+Version 1.1.4
+-------------
+
+Released 2019-04-17
+
+* Replace ``/`` with ``/resources`` endpoint (configurable)
+* Enable or disable resource list route via configuration
+* Add argument rel to method ``to_dict(rel=False)`` of Model in order to fetch data of related resource
+* bug fix on export
+
 Version 1.1.3
 --------------
 

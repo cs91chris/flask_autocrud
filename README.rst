@@ -66,9 +66,10 @@ Other parameters:
 
     - Use ``fields`` parameter to get only the fields listes as value, separated by ``;``.
     - Use ``limit`` and ``page`` parameters for pagination.
-    - Use ``export`` parameter to export data into csv format.
     - Sorting is implemented with ``sort`` parameter. The value is a list of field separated by `;`
       You can prepend ``-`` to reverse order.
+    - Use ``export`` parameter to export data into csv format.
+    - Use ``extended`` in order to fetch data of related resource.
 
 Example requests:
 
