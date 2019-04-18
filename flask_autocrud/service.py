@@ -1,5 +1,21 @@
 from flask import request
+from flask import current_app as cap
 from flask.views import MethodView
+
+from sqlalchemy import inspect
+from sqlalchemy.exc import ArgumentError
+from sqlalchemy.orm import contains_eager
+from sqlalchemy.orm import eagerload
+from sqlalchemy.orm import joinedload, subqueryload
+
+from sqlalchemy_filters import apply_filters
+from sqlalchemy_filters import apply_loads
+from sqlalchemy_filters import apply_sort
+
+from sqlalchemy_filters.exceptions import BadSpec
+from sqlalchemy_filters.exceptions import FieldNotFound
+from sqlalchemy_filters.exceptions import BadFilterFormat
+from sqlalchemy_filters.exceptions import BadSortFormat
 
 from .wrapper import get_json
 from .wrapper import resp_csv
@@ -10,6 +26,8 @@ from .wrapper import response_with_location
 
 from .validators import validate_entity
 from .validators import parsing_query_string
+
+from .utils import from_model_to_dict
 
 from .config import ARGUMENT
 from .config import HTTP_STATUS
@@ -149,3 +167,81 @@ class Service(MethodView):
         session.commit()
 
         return response_with_links(resource, HTTP_STATUS.CREATED)
+
+    def fetch(self):
+        """
+
+        :return:
+        """
+        response = []
+        invalid = []
+        model = self.__model__
+        query = self.__db__.session.query(self.__model__)
+
+        data = get_json()
+        joins = data.get('joins') or {}
+        filters = data.get('filters') or []
+        fields = data.get('fields') or []
+        sort = data.get('sortBy') or []
+
+        cap.logger.debug(query)
+
+        for k in fields:
+            if k not in (model.required() + model.optional()):
+                invalid.append(k)
+
+        if len(invalid) == 0 and len(fields) > 0:
+            query = apply_loads(query, fields)
+            cap.logger.debug(query)
+
+        for k in joins.keys():
+            loader = None
+            instance = None
+
+            for r in inspect(model).relationships:
+                if r.key == k.lower():
+                    loader = contains_eager
+                    instance = getattr(model, r.key)
+                if r.key.split('_collection')[0] == k.lower():
+                    loader = contains_eager
+                    instance = getattr(model, r.key)
+
+            if instance is not None:
+                try:
+                    query = query.options(loader(instance).load_only(*joins.get(k)))
+                    cap.logger.debug(query)
+                except ArgumentError:
+                    invalid += joins.get(k)
+            else:
+                invalid.append(k)
+
+        for f in filters:
+            try:
+                query = apply_filters(query, f)
+                cap.logger.debug(query)
+            except BadSpec:
+                invalid.append(f.get('model'))
+            except FieldNotFound:
+                invalid.append(f.get('field'))
+            except BadFilterFormat:
+                invalid.append(f.get('op'))
+
+        for s in sort:
+            try:
+                query = apply_sort(query, s)
+                cap.logger.debug(query)
+            except BadSpec:
+                invalid.append(s.get('model'))
+            except FieldNotFound:
+                invalid.append(s.get('field'))
+            except BadSortFormat:
+                invalid.append(s.get('direction'))
+
+        if len(invalid) > 0:
+            return resp_json(invalid, 'invalid', code=HTTP_STATUS.BAD_REQUEST)
+
+        for r in query.all():
+            data = from_model_to_dict(r.__dict__)
+            response.append(data)
+
+        return resp_json(response, self.__collection_name__)

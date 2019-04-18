@@ -37,6 +37,7 @@ ALLOWED_METHODS = {
     'PUT',
     'PATCH',
     'DELETE',
+    'FETCH',
     'HEAD',
     'OPTIONS'
 }

@@ -178,6 +178,14 @@ class AutoCrud(object):
                 strict_slashes=False
             )
 
+        if 'FETCH' in methods:
+            endpoint.add_url_rule(
+                cls.__model__.__url__ + '/',
+                view_func=view_func,
+                methods=['FETCH'],
+                strict_slashes=False
+            )
+
         endpoint.add_url_rule(
             '{resource}/<{pk_type}:{pk}>'.format(
                 resource=cls.__model__.__url__,
@@ -186,5 +194,5 @@ class AutoCrud(object):
             ),
             view_func=view_func,
             strict_slashes=False,
-            methods=methods - {'POST'}
+            methods=methods - {'POST', 'FETCH'}
         )
