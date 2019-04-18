@@ -4,9 +4,8 @@ from flask.views import MethodView
 
 from sqlalchemy import inspect
 from sqlalchemy.exc import ArgumentError
+from sqlalchemy.orm import joinedload
 from sqlalchemy.orm import contains_eager
-from sqlalchemy.orm import eagerload
-from sqlalchemy.orm import joinedload, subqueryload
 
 from sqlalchemy_filters import apply_filters
 from sqlalchemy_filters import apply_loads
@@ -195,20 +194,16 @@ class Service(MethodView):
             cap.logger.debug(query)
 
         for k in joins.keys():
-            loader = None
             instance = None
-
             for r in inspect(model).relationships:
-                if r.key == k.lower():
-                    loader = contains_eager
-                    instance = getattr(model, r.key)
-                if r.key.split('_collection')[0] == k.lower():
-                    loader = contains_eager
+                if r.key == k.lower() or r.key.split('_collection')[0] == k.lower():
                     instance = getattr(model, r.key)
 
             if instance is not None:
                 try:
-                    query = query.options(loader(instance).load_only(*joins.get(k)))
+                    query = query.join(instance, aliased=False).options(
+                        contains_eager(instance).load_only(*joins.get(k))
+                    )
                     cap.logger.debug(query)
                 except ArgumentError:
                     invalid += joins.get(k)
