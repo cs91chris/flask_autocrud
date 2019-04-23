@@ -112,6 +112,10 @@ class AutoCrud(object):
 
         self._app.register_blueprint(self._api)
 
+        if not hasattr(app, 'extensions'):
+            app.extensions = dict()
+        app.extensions['autocrud'] = self
+
     def _register_model(self, cls):
         """
 
