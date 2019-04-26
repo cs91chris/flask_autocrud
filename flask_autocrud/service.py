@@ -4,12 +4,12 @@ from flask.views import MethodView
 
 from sqlalchemy import inspect
 from sqlalchemy.exc import ArgumentError
-from sqlalchemy.orm import joinedload
 from sqlalchemy.orm import contains_eager
 
 from sqlalchemy_filters import apply_filters
 from sqlalchemy_filters import apply_loads
 from sqlalchemy_filters import apply_sort
+from sqlalchemy_filters import apply_pagination
 
 from sqlalchemy_filters.exceptions import BadSpec
 from sqlalchemy_filters.exceptions import FieldNotFound
@@ -22,6 +22,7 @@ from .wrapper import resp_json
 from .wrapper import no_content
 from .wrapper import response_with_links
 from .wrapper import response_with_location
+from .wrapper import response_with_pagination
 
 from .validators import validate_entity
 from .validators import parsing_query_string
@@ -63,7 +64,7 @@ class Service(MethodView):
         response = []
         model = self.__model__
         page = request.args.get(ARGUMENT.STATIC.page)
-        limit = request.args.get(ARGUMENT.STATIC.limit)
+        limit = request.args.get(ARGUMENT.STATIC.limit) or 1000
         export = True if ARGUMENT.STATIC.export in request.args else False
         extended = True if ARGUMENT.STATIC.extended in request.args else False
 
@@ -182,6 +183,20 @@ class Service(MethodView):
         filters = data.get('filters') or []
         fields = data.get('fields') or []
         sort = data.get('sortBy') or []
+        pagination = data.get('pagination') or {}
+        page = pagination.get('page') or 1
+        limit = pagination.get('limit') or 1000
+
+        try:
+            int(page)
+        except ValueError:
+            invalid.append(page)
+        try:
+            int(limit)
+            if limit > 1000:
+                raise ValueError
+        except ValueError:
+            invalid.append(limit)
 
         cap.logger.debug(query)
 
@@ -235,8 +250,10 @@ class Service(MethodView):
         if len(invalid) > 0:
             return resp_json(invalid, 'invalid', code=HTTP_STATUS.BAD_REQUEST)
 
+        query, pagination = apply_pagination(query, page_number=page, page_size=limit)
+
         for r in query.all():
             data = from_model_to_dict(r.__dict__)
             response.append(data)
 
-        return resp_json(response, self.__collection_name__)
+        return response_with_pagination(response, pagination)

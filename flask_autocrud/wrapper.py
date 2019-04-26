@@ -9,7 +9,7 @@ from flask import make_response
 from flask_json import as_json
 
 from .config import HTTP_STATUS
-
+from .model import Model
 
 def get_json():
     """
@@ -35,12 +35,12 @@ def list_to_csv(data: list, delimiter=';', quoting=True, qc='"'):
     output = io.StringIO()
 
     w = csv.DictWriter(
-        output
-        ,data[0].keys() if data else ''
-        ,dialect='excel-tab'
-        ,delimiter=delimiter
-        ,quotechar=qc
-        ,quoting=q
+        output,
+        data[0].keys() if data else '',
+        dialect='excel-tab',
+        delimiter=delimiter,
+        quotechar=qc,
+        quoting=q
     )
     w.writeheader()
     w.writerows(data)
@@ -125,3 +125,35 @@ def no_content():
     del resp.headers['Content-Type']
     del resp.headers['Content-Length']
     return resp
+
+
+@as_json
+def response_with_pagination(resource, pagination):
+    """
+
+    :param resource:
+    :param pagination:
+    :return:
+    """
+    code = HTTP_STATUS.SUCCESS
+
+    total_results = pagination.total_results
+    page_number = pagination.page_number
+    num_pages = pagination.num_pages
+    page_size = pagination.page_size
+
+    if num_pages > 1 and total_results > page_size:
+        code = HTTP_STATUS.PARTIAL_CONTENT
+
+    if page_number == num_pages:
+        code = HTTP_STATUS.SUCCESS
+
+    if isinstance(resource, Model):
+        resource = resource.to_dict()
+
+    return resource, code, {
+        'Pagination-Count': total_results,
+        'Pagination-Page': page_number,
+        'Pagination-Num-Pages': num_pages,
+        'Pagination-Limit': page_size
+    }
