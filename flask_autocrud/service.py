@@ -27,6 +27,7 @@ from .wrapper import response_with_pagination
 from .validators import validate_entity
 from .validators import parsing_query_string
 
+from .utils import get_pagination_params
 from .utils import from_model_to_dict
 
 from .config import ARGUMENT
@@ -63,10 +64,9 @@ class Service(MethodView):
         """
         response = []
         model = self.__model__
-        page = request.args.get(ARGUMENT.STATIC.page)
-        limit = request.args.get(ARGUMENT.STATIC.limit) or 1000
         export = True if ARGUMENT.STATIC.export in request.args else False
         extended = True if ARGUMENT.STATIC.extended in request.args else False
+        page, limit = get_pagination_params(cap.config, request.args)
 
         if resource_id is not None:
             resource = model.query.get(resource_id)
@@ -77,15 +77,18 @@ class Service(MethodView):
         if request.path.endswith('meta'):
             return resp_json(model.description())
 
-        fields, statement = parsing_query_string(model)
+        fields, statement, invalid = parsing_query_string(model)
 
-        if page is not None:
-            resources = statement.paginate(
-                page=int(page) if page else None,
-                per_page=int(limit) if limit else None
-            ).items
-        else:
-            resources = statement.limit(limit).all()
+        if page is False or (page is not None and page < 0):
+            invalid.append(page)
+        if limit is False or (limit is not None and limit < 0):
+            invalid.append(limit)
+
+        if len(invalid) > 0:
+            return resp_json(invalid, 'invalid', code=HTTP_STATUS.BAD_REQUEST)
+
+        statement, pagination = apply_pagination(statement, page, limit)
+        resources = statement.all()
 
         for r in resources:
             item = r.to_dict(True if extended else False)
@@ -95,8 +98,13 @@ class Service(MethodView):
                     item.pop(k)
             response.append(item)
 
-        response_builder = resp_csv if export else resp_json
-        return response_builder(response, self.__collection_name__)
+        if export:
+            file_name = self.__collection_name__
+            file_name += ("_" + str(page)) if page else ""
+            file_name += ("_" + str(limit)) if limit else ""
+            return resp_csv(response, file_name)
+
+        return response_with_pagination(response, pagination)
 
     def patch(self, resource_id):
         """
@@ -183,19 +191,11 @@ class Service(MethodView):
         filters = data.get('filters') or []
         fields = data.get('fields') or []
         sort = data.get('sortBy') or []
-        pagination = data.get('pagination') or {}
-        page = pagination.get('page') or 1
-        limit = pagination.get('limit') or 1000
+        page, limit = get_pagination_params(cap.config, data.get('pagination') or {})
 
-        try:
-            int(page)
-        except ValueError:
+        if page is False or (page is not None and page < 0):
             invalid.append(page)
-        try:
-            int(limit)
-            if limit > 1000:
-                raise ValueError
-        except ValueError:
+        if limit is False or (limit is not None and limit < 0):
             invalid.append(limit)
 
         cap.logger.debug(query)
@@ -250,7 +250,7 @@ class Service(MethodView):
         if len(invalid) > 0:
             return resp_json(invalid, 'invalid', code=HTTP_STATUS.BAD_REQUEST)
 
-        query, pagination = apply_pagination(query, page_number=page, page_size=limit)
+        query, pagination = apply_pagination(query, page, limit)
 
         for r in query.all():
             data = from_model_to_dict(r.__dict__)

@@ -11,6 +11,21 @@ from .config import ARGUMENT
 from .config import HTTP_STATUS
 
 
+def valid_number(num):
+    """
+
+    :param num:
+    :return:
+    """
+    if num is None:
+        return None
+
+    try:
+        return int(num)
+    except ValueError:
+        return False
+
+
 def validate_entity(model, data):
     """
 
@@ -40,18 +55,6 @@ def parsing_query_string(model):
     fields = []
     filters = []
     invalid = []
-
-    try:
-        page = request.args.get(ARGUMENT.STATIC.page)
-        int(page) if page else None
-    except ValueError:
-        invalid.append(ARGUMENT.STATIC.page)
-
-    try:
-        limit = request.args.get(ARGUMENT.STATIC.limit)
-        int(limit) if limit else None
-    except ValueError:
-        invalid.append(ARGUMENT.STATIC.limit)
 
     for k, v in request.args.items():
         if k in ARGUMENT.STATIC.__dict__.keys():
@@ -106,7 +109,4 @@ def parsing_query_string(model):
         else:
             invalid.append(k)
 
-    if len(invalid) > 0:
-        abort(resp_json({'invalid': invalid}, code=HTTP_STATUS.BAD_REQUEST))
-
-    return fields, model.query.filter(*filters).order_by(*order)
+    return fields, model.query.filter(*filters).order_by(*order), invalid

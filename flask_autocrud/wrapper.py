@@ -11,6 +11,7 @@ from flask_json import as_json
 from .config import HTTP_STATUS
 from .model import Model
 
+
 def get_json():
     """
 
