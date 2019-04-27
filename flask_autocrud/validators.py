@@ -71,6 +71,7 @@ def parsing_query_string(model):
                 elif v.startswith(GRAMMAR.LIKE):
                     filters.append(attribute.ilike(v[1:], escape='/'))
                 else:
+                    v = v.strip(GRAMMAR.SEP)
                     items = v.split(GRAMMAR.SEP)
                     if len(items) > 1:
                         if items[0].startswith(GRAMMAR.NOT):
@@ -102,6 +103,7 @@ def parsing_query_string(model):
                     order.append(direction(getattr(model, item)))
 
         elif k == ARGUMENT.DYNAMIC.fields:
+            v = v.strip(GRAMMAR.SEP)
             fields = v.split(GRAMMAR.SEP)
             for item in fields:
                 if not hasattr(model, item):
