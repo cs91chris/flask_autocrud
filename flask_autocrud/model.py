@@ -60,32 +60,25 @@ class Model(object):
         :param rel:
         :return:
         """
-        result_dict = {}
+        result = {}
         for c in self.__table__.columns.keys():
-            value = result_dict[c] = getattr(self, c, None)
+            value = result[c] = getattr(self, c, None)
 
             if isinstance(value, Decimal):
-                result_dict[c] = float(result_dict[c])
+                result[c] = float(result[c])
             elif isinstance(value, datetime.datetime):
-                result_dict[c] = value.isoformat()
+                result[c] = value.isoformat()
 
         if rel is True:
             for r in inspect(self.__class__).relationships:
                 if 'collection' not in r.key:
-                    ref_key = r.key
-                    instance = getattr(self, r.key)
-                    if instance:
-                        result_dict.update({
-                            ref_key: instance.to_dict()
-                        })
-                else:
-                    r_key = r.key.split('_')[0] + 'List'
-                    result_dict.update({r_key: []})
+                    instance = getattr(self, r.key) or r.argument()
+                    result.update({r.key: instance.to_dict()})
 
-                    for i in getattr(self, r.key):
-                        result_dict.get(r_key).append(i.to_dict())
+                    for i in r.local_columns:
+                        result.pop(i.name)
 
-        return result_dict
+        return result
 
     def links(self):
         """

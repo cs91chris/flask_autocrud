@@ -29,6 +29,7 @@ from .validators import parsing_query_string
 
 from .utils import get_pagination_params
 from .utils import from_model_to_dict
+from .utils import to_flatten_dict
 
 from .config import ARGUMENT
 from .config import HTTP_STATUS
@@ -93,9 +94,14 @@ class Service(MethodView):
         for r in resources:
             item = r.to_dict(True if extended else False)
             item_keys = item.keys()
+
             if fields:
                 for k in set(item_keys) - set(fields):
                     item.pop(k)
+
+            if export and extended:
+                item = to_flatten_dict(item)
+
             response.append(item)
 
         if export:

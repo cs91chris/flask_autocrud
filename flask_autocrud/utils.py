@@ -1,6 +1,8 @@
 from datetime import datetime
 from decimal import Decimal
 
+from collections import MutableMapping
+
 from .model import Model
 from .config import ARGUMENT
 from .validators import valid_number
@@ -59,3 +61,23 @@ def from_model_to_dict(data):
 
             resp.update({k: v})
     return resp
+
+
+def to_flatten_dict(d, parent_key='', sep='_'):
+    """
+
+    :param d:
+    :param parent_key:
+    :param sep:
+    :return:
+    """
+    items = []
+
+    for k, v in d.items():
+        new_key = (parent_key + sep + k) if parent_key else k
+
+        if isinstance(v, MutableMapping):
+            items.extend(to_flatten_dict(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
