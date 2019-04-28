@@ -2,7 +2,6 @@ from flask import Blueprint
 
 from flask_json import as_json
 
-from sqlalchemy.sql import sqltypes
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -34,6 +33,7 @@ class AutoCrud(object):
         self._exclude_tables = exclude_tables
         self._user_models = user_models
         self._schema = schema
+        self._models = {}
 
         if app is not None:
             self.init_app(self._app, self._db, self._admin, self._view)
@@ -65,7 +65,6 @@ class AutoCrud(object):
         if self._admin and not self._view:
             raise AttributeError(MESSAGES.get('VIEW_NOT_NULL'))
 
-        self._app.classes = {}
         self._automap_model = automap_base(declarative_base(cls=(db.Model, Model)))
         set_default_config(self._app)
 
@@ -90,7 +89,7 @@ class AutoCrud(object):
                         continue
 
                     if self._app.config['AUTOCRUD_READ_ONLY']:
-                        cls.__methods__ = {'GET'}
+                        cls.__methods__ = {'GET', 'FETCH'}
 
                     if not self._app.config['AUTOCRUD_FETCH_ENABLED']:
                         cls.__methods__ -= {'FETCH'}
@@ -106,11 +105,8 @@ class AutoCrud(object):
                 :return:
                 """
                 routes = {}
-                for name, cls in self._app.classes.items():
-                    routes[name] = "{}{{/{}}}".format(
-                        cls.__model__.__url__,
-                        cls.__model__.primary_key()
-                    )
+                for name, cls in self._models.items():
+                    routes[name] = "{}{{/{}}}".format(cls.__url__, cls.primary_key())
                 return routes
 
         self._app.register_blueprint(self._api)
@@ -127,77 +123,56 @@ class AutoCrud(object):
         if self._admin is not None:
             self._admin.add_view(self._view(cls, self._db.session))
 
-        cls.__url__ = '{}/{}'.format(
-            self._app.config['AUTOCRUD_BASE_URL'],
-            cls.__name__.lower()
-        )
+        class_name = cls.__name__
+        cls.__url__ = self._app.config['AUTOCRUD_BASE_URL'] + '/' + class_name.lower()
 
         service_class = type(
-            cls.__name__ + 'Service',
+            class_name + 'Service',
             (Service,),
             {
                 '__model__': cls,
                 '__db__': self._db,
-                '__collection_name__': cls.__name__
+                '__collection_name__': class_name
             }
         )
 
-        primary_key_type = 'string'
-        cols = list(cls().__table__.primary_key.columns)
-
-        if len(cols) == 1:
-            col_type = cols[0].type
-            if isinstance(col_type, sqltypes.String):
-                primary_key_type = 'string'
-            elif isinstance(col_type, sqltypes.Integer):
-                primary_key_type = 'int'
-            elif isinstance(col_type, sqltypes.Numeric):
-                primary_key_type = 'float'
-
-        cls = service_class
-        endpoint = self._api
-
-        self._app.classes.update({cls.__model__.__name__: cls})
-        view_func = cls.as_view(service_class.__name__.lower())
-        methods = set(cls.__model__.__methods__)
+        model_url = cls.__url__
+        methods = set(cls.__methods__)
+        self._models.update({cls.__name__: cls})
+        view_func = service_class.as_view(class_name.lower())
 
         if 'GET' in methods:
-            endpoint.add_url_rule(
-                cls.__model__.__url__ + '/',
+            self._api.add_url_rule(
+                model_url,
                 defaults={'resource_id': None},
                 view_func=view_func,
                 strict_slashes=False,
                 methods=['GET']
             )
+
             if self._app.config['AUTOCRUD_METADATA_ENABLED'] is True:
-                endpoint.add_url_rule(
-                    '{resource}/meta'.format(resource=cls.__model__.__url__),
+                self._api.add_url_rule(
+                    '{resource}{meta}'.format(
+                        resource=model_url,
+                        meta=self._app.config['AUTOCRUD_METADATA_URL']
+                    ),
                     view_func=view_func,
-                    strict_slashes=False,
                     methods=['GET']
                 )
 
         if 'POST' in methods:
-            endpoint.add_url_rule(
-                cls.__model__.__url__ + '/',
-                view_func=view_func,
-                methods=['POST'],
-                strict_slashes=False
-            )
+            self._api.add_url_rule(model_url, view_func=view_func, methods=['POST'])
 
         if 'FETCH' in methods:
-            endpoint.add_url_rule(
-                cls.__model__.__url__ + '/',
-                view_func=view_func,
-                methods=['FETCH'],
-                strict_slashes=False
-            )
+            self._api.add_url_rule(model_url, view_func=view_func, methods=['FETCH'])
 
-        endpoint.add_url_rule(
+        cols = list(cls().__table__.primary_key.columns)
+
+        self._api.add_url_rule(
             '{resource}/<{pk_type}:{pk}>'.format(
-                resource=cls.__model__.__url__,
+                resource=model_url,
                 pk='resource_id',
-                pk_type=primary_key_type
+                pk_type=cols[0].type.python_type.__name__ if len(cols) > 0 else 'string'
             ),
             view_func=view_func,
             strict_slashes=False,

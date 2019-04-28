@@ -64,6 +64,7 @@ def set_default_config(app):
     :param app:
     """
     app.config.setdefault('AUTOCRUD_METADATA_ENABLED', True)
+    app.config.setdefault('AUTOCRUD_METADATA_URL', '/meta')
     app.config.setdefault('AUTOCRUD_READ_ONLY', False)
     app.config.setdefault('AUTOCRUD_BASE_URL', '')
     app.config.setdefault('AUTOCRUD_RESOURCES_URL', '/resources')
