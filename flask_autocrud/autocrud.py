@@ -92,6 +92,9 @@ class AutoCrud(object):
                     if self._app.config['AUTOCRUD_READ_ONLY']:
                         cls.__methods__ = {'GET'}
 
+                    if not self._app.config['AUTOCRUD_FETCH_ENABLED']:
+                        cls.__methods__ -= {'FETCH'}
+
                     self._register_model(cls)
 
         if self._app.config['AUTOCRUD_RESOURCES_URL_ENABLED']:
