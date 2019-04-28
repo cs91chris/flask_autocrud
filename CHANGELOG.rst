@@ -1,6 +1,18 @@
 Release Notes
 ^^^^^^^^^^^^^
 
+Version 1.2.0
+-------------
+
+Released 2019-04-28
+
+* removed many relationships from ``to_dict`` output of ``Model`` class
+* convert nested data into flatten data when using export param
+* configurable max and default limit to query
+* add pagination header in response to a GET request
+* bug fix on query string parser
+* Add FETCH method for advanced search. See `sqlalchemy-filters <https://pypi.org/project/sqlalchemy-filters>`__
+
 Version 1.1.4
 -------------
 

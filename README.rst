@@ -1,14 +1,12 @@
 Flask-AutoCRUD
 ==============
 
-Based on `sandman2 <https://github.com/jeffknupp/sandman2>`__.
+Based on `sandman2 <https://github.com/jeffknupp/sandman2>`__ and
+`sqlalchemy-filters <https://pypi.org/project/sqlalchemy-filters>`__.
 
-Automatically generate a RESTful API service for CRUD operation on
-database. If a list of tables or a list of sqlalchemy model is not
-provided, all tables are affected.
+Automatically generate a RESTful API service for CRUD operation on database.
+If a list of tables or a list of sqlalchemy model is not provided, all tables are affected.
 
-For api documentation see `sandman2
-documentation <http://sandman2.readthedocs.io/en/latest/>`__
 
 Quickstart
 ~~~~~~~~~~
@@ -69,7 +67,7 @@ Other parameters:
     - Sorting is implemented with ``sort`` parameter. The value is a list of field separated by `;`
       You can prepend ``-`` to reverse order.
     - Use ``export`` parameter to export data into csv format.
-    - Use ``extended`` in order to fetch data of related resource.
+    - Use ``extended`` in order to fetch data of related resources.
 
 Example requests:
 
@@ -79,6 +77,58 @@ http://127.0.0.1:5000/invoice?fields=Total;InvoiceId&BillingPostalCode=!null&Bil
 
 http://127.0.0.1:5000/invoice?fields=Total;InvoiceDate;InvoiceId;CustomerId&page=2&limit=10
 
+Example FETCH:
+
+.. code:: bash
+
+    curl --request FETCH \
+        --url http://127.0.0.1:5000/customer \
+        --header 'content-type: application/json' \
+        --data '{
+            "fields": [
+                "Address",
+                "City"
+            ],
+            "joins": {
+                "Employee": [
+                    "FirstName",
+                    "LastName"
+                ],
+                "Invoice": [
+                    "Total"
+                ]
+            },
+            "filters": [
+                {
+                    "model": "Customer",
+                    "field": "SupportRepId",
+                    "op": "==",
+                    "value": 5
+                },
+                {
+                    "model": "Invoice",
+                    "field": "Total",
+                    "op": ">",
+                    "value": 6
+                }
+            ],
+            "sortBy": [
+                {
+                    "model": "Invoice",
+                    "field": "Total",
+                    "direction": "asc"
+                },
+                {
+                    "model": "Customer",
+                    "field": "Address",
+                    "direction": "desc"
+                }
+            ],
+            "pagination": {
+                "page": 1,
+                "limit": 5
+            }
+        }'
 
 .. _section-3:
 
@@ -91,5 +141,9 @@ Configuration
 4. ``AUTOCRUD_RESOURCES_URL``: *(default: '/resources')* url for all available resources
 5. ``AUTOCRUD_RESOURCES_URL_ENABLED``: *(default: True)* enable route for resources list
 6. ``AUTOCRUD_SUBDOMAIN``: *(default: None)* bind autocrud endpoints to a subdomain
+7. ``AUTOCRUD_QUERY_LIMIT_ENABLED``: *(default True)* enable max query limit
+8. ``AUTOCRUD_MAX_QUERY_LIMIT``: *(default 1000)* max query limit
+9. ``AUTOCRUD_FETCH_ENABLED``: *(default True)* enable or disable FETCH method
+
 
 License MIT
