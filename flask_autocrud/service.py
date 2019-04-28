@@ -222,13 +222,16 @@ class Service(MethodView):
                     instance = getattr(model, r.key)
 
             if instance is not None:
+                joint = joins.get(k)
                 try:
-                    query = query.join(instance, aliased=False).options(
-                        contains_eager(instance).load_only(*joins.get(k))
-                    )
+                    load_column = contains_eager(instance)
+                    if len(joint) > 0 and joint[0] != '*':
+                        load_column = load_column.load_only(*joint)
+
+                    query = query.join(instance, aliased=False).options(load_column)
                     cap.logger.debug(query)
                 except ArgumentError:
-                    invalid += joins.get(k)
+                    invalid += joint
             else:
                 invalid.append(k)
 
