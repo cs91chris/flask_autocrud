@@ -34,13 +34,13 @@ def validate_entity(model, data):
     """
     fields = model.required() + model.optional()
     unknown = [k for k in data if k not in fields]
-    missing = set(model.required()) - set(data)
+    missing = list(set(model.required()) - set(data.keys()))
 
     if len(unknown) or len(missing):
         abort(
             resp_json({
                 'unknown': unknown,
-                'missing': list(missing)
+                'missing': missing
             }, code=HTTP_STATUS.UNPROCESSABLE_ENTITY)
         )
 

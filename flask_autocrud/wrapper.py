@@ -1,8 +1,6 @@
 import io
 import csv
 
-from flask import abort
-from flask import request
 from flask import Response
 from flask import make_response
 
@@ -10,17 +8,6 @@ from flask_json import as_json
 
 from .config import HTTP_STATUS
 from .model import Model
-
-
-def get_json():
-    """
-
-    :return:
-    """
-    req = request.get_json()
-    if not req:
-        abort(HTTP_STATUS.BAD_REQUEST, 'No JSON given')
-    return req
 
 
 def list_to_csv(data: list, delimiter=';', quoting=True, qc='"'):

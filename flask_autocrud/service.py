@@ -16,7 +16,6 @@ from sqlalchemy_filters.exceptions import FieldNotFound
 from sqlalchemy_filters.exceptions import BadFilterFormat
 from sqlalchemy_filters.exceptions import BadSortFormat
 
-from .wrapper import get_json
 from .wrapper import resp_csv
 from .wrapper import resp_json
 from .wrapper import no_content
@@ -121,7 +120,7 @@ class Service(MethodView):
         model = self.__model__
         session = self.__db__.session()
 
-        data = get_json()
+        data = request.get_json() or {}
         validate_entity(model, data)
 
         resource = model.query.get(resource_id)
@@ -142,7 +141,10 @@ class Service(MethodView):
         model = self.__model__
         session = self.__db__.session()
 
-        data = get_json()
+        data = request.get_json()
+        if not data:
+            return resp_json({'message': 'Bad Request'}, code=HTTP_STATUS.BAD_REQUEST)
+
         validate_entity(model, data)
 
         resource = model.query.filter_by(**data).first()
@@ -165,7 +167,7 @@ class Service(MethodView):
         model = self.__model__
         session = self.__db__.session()
 
-        data = get_json()
+        data = request.get_json() or {}
         validate_entity(model, data)
 
         resource = model.query.get(resource_id)
@@ -192,7 +194,7 @@ class Service(MethodView):
         model = self.__model__
         query = self.__db__.session.query(self.__model__)
 
-        data = get_json()
+        data = request.get_json() or {}
         joins = data.get('joins') or {}
         filters = data.get('filters') or []
         fields = data.get('fields') or []
