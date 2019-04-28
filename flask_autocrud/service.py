@@ -31,7 +31,9 @@ from .utils import from_model_to_dict
 from .utils import to_flatten_dict
 
 from .config import ARGUMENT
+from .config import GRAMMAR
 from .config import HTTP_STATUS
+from .config import COLLECTION_SUFFIX
 
 
 class Service(MethodView):
@@ -222,7 +224,7 @@ class Service(MethodView):
                 joint = joins.get(k)
                 try:
                     load_column = contains_eager(instance)
-                    if len(joint) > 0 and joint[0] != '*':
+                    if len(joint) > 0 and joint[0] != GRAMMAR.ALL:
                         load_column = load_column.load_only(*joint)
 
                     query = query.join(instance, aliased=False).options(load_column)
@@ -268,7 +270,7 @@ class Service(MethodView):
 
                 for key in list(data.keys()):
                     if isinstance(data.get(key), list):
-                        zipkeys.update({key.rstrip('List') + '_': data.get(key)})
+                        zipkeys.update({key.rstrip(COLLECTION_SUFFIX) + '_': data.get(key)})
                         del data[key]
 
                 for zk, value in zipkeys.items():

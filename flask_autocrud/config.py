@@ -6,6 +6,7 @@ class GRAMMAR:
     LIKE = '%'
     NOT_NULL = NOT + NULL
     NOT_LIKE = NOT + LIKE
+    ALL = '*'
 
 
 class ARGUMENT:
@@ -44,6 +45,7 @@ ALLOWED_METHODS = {
 }
 
 MODEL_VERSION = '1'
+COLLECTION_SUFFIX = 'List'
 
 
 MESSAGES = {

@@ -4,8 +4,10 @@ from decimal import Decimal
 from collections import MutableMapping
 
 from .model import Model
-from .config import ARGUMENT
 from .validators import valid_number
+
+from .config import ARGUMENT
+from .config import COLLECTION_SUFFIX
 
 
 def get_pagination_params(conf, args):
@@ -53,7 +55,7 @@ def from_model_to_dict(data):
             })
         elif isinstance(v, list):
             if len(v) > 0:
-                name = v[0].__class__.__name__ + 'List'
+                name = v[0].__class__.__name__ + COLLECTION_SUFFIX
                 resp.update({
                     name: [from_model_to_dict(i.__dict__) for i in v]
                 })
