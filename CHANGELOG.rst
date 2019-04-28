@@ -1,6 +1,17 @@
 Release Notes
 ^^^^^^^^^^^^^
 
+Version 1.2.1
+-------------
+
+Released 2019-04-28
+
+* fix json body handling, invalid page and limit handling
+* add ``AUTOCRUD_METADATA_URL`` configuration
+* add ``export`` to csv to ``FETCH`` method
+* add ``Total-Count`` header when response is csv
+* add support to wildcard ``*`` in order to load all columns of joined table (FETCH)
+
 Version 1.2.0
 -------------
 
