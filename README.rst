@@ -95,7 +95,7 @@ Example FETCH:
                     "LastName"
                 ],
                 "Invoice": [
-                    "Total"
+                    "*"
                 ]
             },
             "filters": [
@@ -135,15 +135,16 @@ Example FETCH:
 Configuration
 ^^^^^^^^^^^^^
 
-1. ``AUTOCRUD_METADATA_ENABLED``: *(default: True)* enable metadata endpoint for a resource: ``<endpoint>/<resource>/meta``
-2. ``AUTOCRUD_READ_ONLY``: *(default: False)* enable only http GET method
-3. ``AUTOCRUD_BASE_URL``: *(default: '')* prefix url for resources
-4. ``AUTOCRUD_RESOURCES_URL``: *(default: '/resources')* url for all available resources
-5. ``AUTOCRUD_RESOURCES_URL_ENABLED``: *(default: True)* enable route for resources list
-6. ``AUTOCRUD_SUBDOMAIN``: *(default: None)* bind autocrud endpoints to a subdomain
-7. ``AUTOCRUD_QUERY_LIMIT_ENABLED``: *(default True)* enable max query limit
-8. ``AUTOCRUD_MAX_QUERY_LIMIT``: *(default 1000)* max query limit
-9. ``AUTOCRUD_FETCH_ENABLED``: *(default True)* enable or disable FETCH method
+1. ``AUTOCRUD_METADATA_ENABLED``: *(default: True)* enable metadata endpoint for a resource
+2. ``AUTOCRUD_METADATA_URL``: *(default: '/meta)* added at the end of url resource
+3. ``AUTOCRUD_READ_ONLY``: *(default: False)* enable only http GET method
+4. ``AUTOCRUD_BASE_URL``: *(default: '')* prefix url for resources
+5. ``AUTOCRUD_RESOURCES_URL``: *(default: '/resources')* url for all available resources
+6. ``AUTOCRUD_RESOURCES_URL_ENABLED``: *(default: True)* enable route for resources list
+7. ``AUTOCRUD_SUBDOMAIN``: *(default: None)* bind autocrud endpoints to a subdomain
+8. ``AUTOCRUD_QUERY_LIMIT_ENABLED``: *(default True)* enable max query limit
+9. ``AUTOCRUD_MAX_QUERY_LIMIT``: *(default 1000)* max query limit
+10. ``AUTOCRUD_FETCH_ENABLED``: *(default True)* enable or disable FETCH method
 
 
 License MIT
