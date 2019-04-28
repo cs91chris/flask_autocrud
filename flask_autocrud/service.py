@@ -198,6 +198,7 @@ class Service(MethodView):
         fields = data.get('fields') or []
         sort = data.get('sortBy') or []
         page, limit = get_pagination_params(cap.config, data.get('pagination') or {})
+        export = True if ARGUMENT.STATIC.export in request.args else False
 
         if page is False or (page is not None and page < 0):
             invalid.append(page)
@@ -259,7 +260,30 @@ class Service(MethodView):
         query, pagination = apply_pagination(query, page, limit)
 
         for r in query.all():
+            zipkeys = {}
             data = from_model_to_dict(r.__dict__)
-            response.append(data)
+
+            if export:
+                data = to_flatten_dict(data)
+
+                for key in list(data.keys()):
+                    if isinstance(data.get(key), list):
+                        zipkeys.update({key.rstrip('List') + '_': data.get(key)})
+                        del data[key]
+
+                for zk, value in zipkeys.items():
+                    response.append({
+                        **data,
+                        **{zk+k: v for k, v in value[0].items()}
+                    })
+
+            if len(zipkeys.keys()) == 0:
+                response.append(data)
+
+        if export:
+            file_name = self.__collection_name__
+            file_name += ("_" + str(page)) if page else ""
+            file_name += ("_" + str(limit)) if limit else ""
+            return resp_csv(response, file_name)
 
         return response_with_pagination(response, pagination)
