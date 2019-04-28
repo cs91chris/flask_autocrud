@@ -15,11 +15,15 @@ def get_pagination_params(conf, args):
     :param args:
     :return:
     """
+    invalid = []
     page = args.get(ARGUMENT.STATIC.page)
     limit = args.get(ARGUMENT.STATIC.limit)
 
     page = valid_number(page)
     limit = valid_number(limit)
+
+    invalid.append(ARGUMENT.STATIC.page) if page is False else None
+    invalid.append(ARGUMENT.STATIC.limit) if limit is False else None
 
     if conf.get('AUTOCRUD_QUERY_LIMIT_ENABLED'):
         page = 1 if not page else page
@@ -28,7 +32,7 @@ def get_pagination_params(conf, args):
         if not limit or limit > max_limit:
             limit = conf.get('AUTOCRUD_MAX_QUERY_LIMIT')
 
-    return page, limit
+    return page, limit, invalid
 
 
 def from_model_to_dict(data):

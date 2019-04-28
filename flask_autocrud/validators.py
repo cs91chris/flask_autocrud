@@ -21,7 +21,8 @@ def valid_number(num):
         return None
 
     try:
-        return int(num)
+        num = int(num)
+        return num if num > 0 else False
     except ValueError:
         return False
 

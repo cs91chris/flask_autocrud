@@ -63,10 +63,10 @@ class Service(MethodView):
         :return:
         """
         response = []
+        invalid = []
         model = self.__model__
         export = True if ARGUMENT.STATIC.export in request.args else False
         extended = True if ARGUMENT.STATIC.extended in request.args else False
-        page, limit = get_pagination_params(cap.config, request.args)
 
         if resource_id is not None:
             resource = model.query.get(resource_id)
@@ -77,12 +77,11 @@ class Service(MethodView):
         if request.path.endswith('meta'):
             return resp_json(model.description())
 
-        fields, statement, invalid = parsing_query_string(model)
+        page, limit, error = get_pagination_params(cap.config, request.args)
+        invalid += error
 
-        if page is False or (page is not None and page < 0):
-            invalid.append(page)
-        if limit is False or (limit is not None and limit < 0):
-            invalid.append(limit)
+        fields, statement, error = parsing_query_string(model)
+        invalid += error
 
         if len(invalid) > 0:
             return resp_json(invalid, 'invalid', code=HTTP_STATUS.BAD_REQUEST)
@@ -199,13 +198,9 @@ class Service(MethodView):
         filters = data.get('filters') or []
         fields = data.get('fields') or []
         sort = data.get('sortBy') or []
-        page, limit = get_pagination_params(cap.config, data.get('pagination') or {})
         export = True if ARGUMENT.STATIC.export in request.args else False
-
-        if page is False or (page is not None and page < 0):
-            invalid.append(page)
-        if limit is False or (limit is not None and limit < 0):
-            invalid.append(limit)
+        page, limit, error = get_pagination_params(cap.config, data.get('pagination') or {})
+        invalid += error
 
         cap.logger.debug(query)
 
