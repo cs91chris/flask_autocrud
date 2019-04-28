@@ -61,6 +61,7 @@ def resp_csv(data_list, filename):
         mimetype='text/csv',
         headers={
             'Content-Type': 'text/csv',
+            'Total-Count': len(data_list),
             'Content-Disposition': 'attachment; filename=%s.csv' % (filename,)
         }
     )
