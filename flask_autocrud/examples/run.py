@@ -22,8 +22,13 @@ def main():
 
     autocrud = AutoCrud()
     db = SQLAlchemy(app)
+    autocrud.init_app(app, db)
+
     admin = Admin(app, base_template='layout.html', template_mode='bootstrap3')
-    autocrud.init_app(app, db, admin, CustomAdminView)
+
+    for k, m in autocrud.models.items():
+        admin.add_view(CustomAdminView(m, db.session))
+
     app.run(debug=True)
 
 

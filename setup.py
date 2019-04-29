@@ -32,7 +32,6 @@ setup(
     platforms='any',
     install_requires=[
         'Flask==1.0.2',
-        'Flask-Admin==1.5.3',
         'Flask-SQLAlchemy==2.3.2',
         'Flask-JSON==0.3.3',
         'sqlalchemy-filters==0.10.0'

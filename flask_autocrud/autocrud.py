@@ -8,44 +8,36 @@ from sqlalchemy.ext.declarative import declarative_base
 from flask_autocrud.model import Model
 from flask_autocrud.service import Service
 
-from .config import MESSAGES
 from .config import set_default_config
 
 
 class AutoCrud(object):
-    def __init__(self, app=None, db=None, admin=None, view=None,
-                 exclude_tables=None, user_models=None, schema=None):
+    def __init__(self, app=None, db=None, exclude_tables=None, user_models=None, schema=None):
         """
 
         :param db:
         :param app:
-        :param admin:
         :param exclude_tables:
         :param user_models:
         :param schema:
         """
+        self.models = {}
         self._app = app
         self._db = db
-        self._admin = admin
-        self._view = view
-        self._api = None
+        self._schema = schema
         self._automap_model = None
         self._exclude_tables = exclude_tables
         self._user_models = user_models
-        self._schema = schema
-        self._models = {}
+        self._api = None
 
         if app is not None:
-            self.init_app(self._app, self._db, self._admin, self._view)
+            self.init_app(self._app, self._db)
 
-    def init_app(self, app, db, admin=None, view=None,
-                 exclude_tables=None, user_models=None, schema=None):
+    def init_app(self, app, db, exclude_tables=None, user_models=None, schema=None):
         """
 
         :param app:
         :param db:
-        :param admin:
-        :param view:
         :param exclude_tables:
         :param user_models:
         :param schema:
@@ -53,17 +45,15 @@ class AutoCrud(object):
         """
         self._app = app
         self._db = db
-        self._admin = admin
-        self._view = view
+        self._schema = schema
         self._exclude_tables = exclude_tables
         self._user_models = user_models
-        self._schema = schema
 
         if self._db is None:
-            raise AttributeError(MESSAGES.get('DB_NOT_NULL'))
-
-        if self._admin and not self._view:
-            raise AttributeError(MESSAGES.get('VIEW_NOT_NULL'))
+            raise AttributeError(
+                "You can not create AutoCrud without an SQLAlchemy instance. "
+                "Please consider to use the init_app method instead"
+            )
 
         self._automap_model = automap_base(declarative_base(cls=(db.Model, Model)))
         set_default_config(self._app)
@@ -105,7 +95,7 @@ class AutoCrud(object):
                 :return:
                 """
                 routes = {}
-                for name, cls in self._models.items():
+                for name, cls in self.models.items():
                     routes[name] = "{}{{/{}}}".format(cls.__url__, cls.primary_key())
                 return routes
 
@@ -120,9 +110,6 @@ class AutoCrud(object):
 
         :param cls:
         """
-        if self._admin is not None:
-            self._admin.add_view(self._view(cls, self._db.session))
-
         class_name = cls.__name__
         cls.__url__ = self._app.config['AUTOCRUD_BASE_URL'] + '/' + class_name.lower()
 
@@ -138,7 +125,7 @@ class AutoCrud(object):
 
         model_url = cls.__url__
         methods = set(cls.__methods__)
-        self._models.update({cls.__name__: cls})
+        self.models.update({cls.__name__: cls})
         view_func = service_class.as_view(class_name.lower())
 
         if 'GET' in methods:

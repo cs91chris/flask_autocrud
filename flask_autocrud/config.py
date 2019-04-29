@@ -48,18 +48,6 @@ MODEL_VERSION = '1'
 COLLECTION_SUFFIX = 'List'
 
 
-MESSAGES = {
-    'DB_NOT_NULL': """
-        You can not create AutoCrud without an SQLAlchemy instance.
-        Please consider to use the init_app method instead
-    """,
-    'VIEW_NOT_NULL': """
-        You can not create AutoCrud with Admin but without ModelView instance.
-        admin and view arguments are required together
-    """
-}
-
-
 def set_default_config(app):
     """
 
