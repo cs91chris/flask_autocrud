@@ -12,21 +12,19 @@ from .config import set_default_config
 
 
 class AutoCrud(object):
-    def __init__(self, app=None, db=None, exclude_tables=None, user_models=None, schema=None):
+    def __init__(self, app=None, db=None, schema=None, models=None):
         """
 
         :param db:
         :param app:
-        :param exclude_tables:
-        :param user_models:
         :param schema:
+        :param models:
         """
         self.models = {}
         self._app = app
         self._db = db
         self._schema = schema
-        self._exclude_tables = exclude_tables
-        self._user_models = user_models
+        self._user_models = models
         self._api = None
         self._subdomain = None
         self._baseurl = None
@@ -34,26 +32,23 @@ class AutoCrud(object):
         if app is not None:
             self.init_app(
                 self._app, self._db,
-                exclude_tables=self._exclude_tables,
-                user_models=self._user_models,
-                schema=self._schema
+                schema=self._schema,
+                models=self._user_models
             )
 
-    def init_app(self, app, db, exclude_tables=None, user_models=None, schema=None):
+    def init_app(self, app, db, schema=None, models=None):
         """
 
         :param app:
         :param db:
-        :param exclude_tables:
-        :param user_models:
         :param schema:
+        :param models:
         :return:
         """
         self._app = app
         self._db = db
         self._schema = schema
-        self._user_models = user_models
-        self._exclude_tables = exclude_tables or []
+        self._user_models = models
 
         if self._db is None:
             raise AttributeError(
@@ -74,14 +69,13 @@ class AutoCrud(object):
             automap_model.prepare(self._db.engine, reflect=True, schema=self._schema)
 
             for model in automap_model.classes:
-                if model.__table__.name not in self._exclude_tables:
-                    if self._app.config['AUTOCRUD_READ_ONLY']:
-                        model.__methods__ = {'GET', 'FETCH'}
+                if self._app.config['AUTOCRUD_READ_ONLY']:
+                    model.__methods__ = {'GET', 'FETCH'}
 
-                    if not self._app.config['AUTOCRUD_FETCH_ENABLED']:
-                        model.__methods__ -= {'FETCH'}
+                if not self._app.config['AUTOCRUD_FETCH_ENABLED']:
+                    model.__methods__ -= {'FETCH'}
 
-                    self._register_model(model)
+                self._register_model(model)
 
         if self._app.config['AUTOCRUD_RESOURCES_URL_ENABLED']:
             self._register_resources_route()
