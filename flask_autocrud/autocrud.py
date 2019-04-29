@@ -25,13 +25,19 @@ class AutoCrud(object):
         self._app = app
         self._db = db
         self._schema = schema
-        self._automap_model = None
         self._exclude_tables = exclude_tables
         self._user_models = user_models
         self._api = None
+        self._subdomain = None
+        self._baseurl = None
 
         if app is not None:
-            self.init_app(self._app, self._db)
+            self.init_app(
+                self._app, self._db,
+                exclude_tables=self._exclude_tables,
+                user_models=self._user_models,
+                schema=self._schema
+            )
 
     def init_app(self, app, db, exclude_tables=None, user_models=None, schema=None):
         """
@@ -46,8 +52,8 @@ class AutoCrud(object):
         self._app = app
         self._db = db
         self._schema = schema
-        self._exclude_tables = exclude_tables
         self._user_models = user_models
+        self._exclude_tables = exclude_tables or []
 
         if self._db is None:
             raise AttributeError(
@@ -55,49 +61,30 @@ class AutoCrud(object):
                 "Please consider to use the init_app method instead"
             )
 
-        self._automap_model = automap_base(declarative_base(cls=(db.Model, Model)))
         set_default_config(self._app)
+        self._subdomain = self._app.config['AUTOCRUD_SUBDOMAIN']
+        self._baseurl = self._app.config['AUTOCRUD_BASE_URL']
+        self._api = Blueprint('flask_autocrud', __name__, subdomain=self._subdomain)
 
-        self._api = Blueprint(
-            'flask_autocrud',
-            __name__,
-            subdomain=self._app.config['AUTOCRUD_SUBDOMAIN']
-        )
+        if self._user_models:
+            for user_model in self._user_models:
+                self._register_model(user_model)
+        else:
+            automap_model = automap_base(declarative_base(cls=(db.Model, Model)))
+            automap_model.prepare(self._db.engine, reflect=True, schema=self._schema)
 
-        with self._app.app_context():
-            if self._user_models:
-                if any([issubclass(cls, self._automap_model) for cls in self._user_models]):
-                    self._automap_model.prepare(self._db.engine, reflect=True, schema=self._schema)
-
-                for user_model in self._user_models:
-                    self._register_model(user_model)
-            else:
-                self._automap_model.prepare(self._db.engine, reflect=True, schema=self._schema)
-
-                for cls in self._automap_model.classes:
-                    if self._exclude_tables and cls.__table__.name in self._exclude_tables:
-                        continue
-
+            for model in automap_model.classes:
+                if model.__table__.name not in self._exclude_tables:
                     if self._app.config['AUTOCRUD_READ_ONLY']:
-                        cls.__methods__ = {'GET', 'FETCH'}
+                        model.__methods__ = {'GET', 'FETCH'}
 
                     if not self._app.config['AUTOCRUD_FETCH_ENABLED']:
-                        cls.__methods__ -= {'FETCH'}
+                        model.__methods__ -= {'FETCH'}
 
-                    self._register_model(cls)
+                    self._register_model(model)
 
         if self._app.config['AUTOCRUD_RESOURCES_URL_ENABLED']:
-            @self._api.route(self._app.config['AUTOCRUD_BASE_URL'] + self._app.config['AUTOCRUD_RESOURCES_URL'])
-            @as_json
-            def index():
-                """
-
-                :return:
-                """
-                routes = {}
-                for name, cls in self.models.items():
-                    routes[name] = "{}{{/{}}}".format(cls.__url__, cls.primary_key())
-                return routes
+            self._register_resources_route()
 
         self._app.register_blueprint(self._api)
 
@@ -105,63 +92,60 @@ class AutoCrud(object):
             app.extensions = dict()
         app.extensions['autocrud'] = self
 
-    def _register_model(self, cls):
+    def _register_model(self, model):
         """
 
-        :param cls:
+        :param model:
         """
-        class_name = cls.__name__
-        cls.__url__ = self._app.config['AUTOCRUD_BASE_URL'] + '/' + class_name.lower()
+        class_name = model.__name__
+        model.__url__ = "{}/{}".format(self._baseurl, class_name.lower())
 
         service_class = type(
             class_name + 'Service',
-            (Service,),
-            {
-                '__model__': cls,
+            (Service,), {
+                '__model__': model,
                 '__db__': self._db,
                 '__collection_name__': class_name
             }
         )
 
-        model_url = cls.__url__
-        methods = set(cls.__methods__)
-        self.models.update({cls.__name__: cls})
-        view_func = service_class.as_view(class_name.lower())
+        view = service_class.as_view(class_name.lower())
 
-        if 'GET' in methods:
+        def add_route(url='', methods=None, **kwargs):
             self._api.add_url_rule(
-                model_url,
-                defaults={'resource_id': None},
-                view_func=view_func,
+                model.__url__ + url,
+                view_func=view,
+                methods=methods or ['GET'],
                 strict_slashes=False,
-                methods=['GET']
+                **kwargs
             )
 
+        if 'GET' in model.__methods__:
+            add_route(defaults={'resource_id': None})
+
             if self._app.config['AUTOCRUD_METADATA_ENABLED'] is True:
-                self._api.add_url_rule(
-                    '{resource}{meta}'.format(
-                        resource=model_url,
-                        meta=self._app.config['AUTOCRUD_METADATA_URL']
-                    ),
-                    view_func=view_func,
-                    methods=['GET']
-                )
+                add_route(self._app.config['AUTOCRUD_METADATA_URL'])
 
-        if 'POST' in methods:
-            self._api.add_url_rule(model_url, view_func=view_func, methods=['POST'])
+        if 'POST' in model.__methods__:
+            add_route(methods=['POST'])
 
-        if 'FETCH' in methods:
-            self._api.add_url_rule(model_url, view_func=view_func, methods=['FETCH'])
+        if 'FETCH' in model.__methods__:
+            add_route(methods=['FETCH'])
 
-        cols = list(cls().__table__.primary_key.columns)
+        cols = list(model().__table__.primary_key.columns)
+        pk_type = cols[0].type.python_type.__name__ if len(cols) > 0 else 'string'
+        add_route('/<{}:{}>'.format(pk_type, 'resource_id'), model.__methods__ - {'POST', 'FETCH'})
+        self.models[model.__name__] = model
 
-        self._api.add_url_rule(
-            '{resource}/<{pk_type}:{pk}>'.format(
-                resource=model_url,
-                pk='resource_id',
-                pk_type=cols[0].type.python_type.__name__ if len(cols) > 0 else 'string'
-            ),
-            view_func=view_func,
-            strict_slashes=False,
-            methods=methods - {'POST', 'FETCH'}
-        )
+    def _register_resources_route(self):
+        """
+
+        :return:
+        """
+        @self._api.route(self._baseurl + self._app.config['AUTOCRUD_RESOURCES_URL'])
+        @as_json
+        def index():
+            routes = {}
+            for name, cls in self.models.items():
+                routes[name] = "{}{{/{}}}".format(cls.__url__, cls.primary_key())
+            return routes
