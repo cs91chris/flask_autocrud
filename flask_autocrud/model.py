@@ -35,6 +35,18 @@ class Model(object):
         return columns
 
     @classmethod
+    def searchable(cls):
+        """
+
+        :return:
+        """
+        columns = []
+        for c in cls.__table__.columns:
+            if c.type.python_type is str:
+                columns.append(c.name)
+        return columns
+
+    @classmethod
     def optional(cls):
         """
 

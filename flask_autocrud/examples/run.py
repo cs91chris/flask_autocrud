@@ -1,16 +1,18 @@
 from flask import Flask
 
 from flask_admin import Admin
+from flask_admin.contrib.sqla import ModelView
+
 from flask_autocrud import AutoCrud
 from flask_sqlalchemy import SQLAlchemy
-from flask_admin.contrib.sqla import ModelView
 
 
 class CustomAdminView(ModelView):
-    list_template = 'list.html'
-    create_template = 'create.html'
-    edit_template = 'edit.html'
     column_display_pk = True
+    can_export = True
+    can_set_page_size = True
+    can_view_details = True
+    details_modal = True
 
 
 def main():
@@ -20,14 +22,14 @@ def main():
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['JSON_ADD_STATUS'] = False
 
-    autocrud = AutoCrud()
     db = SQLAlchemy(app)
-    autocrud.init_app(app, db)
-
-    admin = Admin(app, base_template='layout.html', template_mode='bootstrap3')
+    autocrud = AutoCrud(app, db)
+    admin = Admin(app, template_mode='bootstrap3')
 
     for k, m in autocrud.models.items():
-        admin.add_view(CustomAdminView(m, db.session))
+        setattr(CustomAdminView, 'column_searchable_list', m.searchable())
+        view = CustomAdminView(m, db.session)
+        admin.add_view(view)
 
     app.run(debug=True)
 
