@@ -94,16 +94,13 @@ class AutoCrud(object):
         class_name = model.__name__
         model.__url__ = "{}/{}".format(self._baseurl, class_name.lower())
 
-        service_class = type(
+        view = type(
             class_name + 'Service',
             (Service,), {
-                '__model__': model,
-                '__db__': self._db,
-                '__collection_name__': class_name
+                '_model': model,
+                '_db': self._db
             }
-        )
-
-        view = service_class.as_view(class_name.lower())
+        ).as_view(class_name.lower())
 
         def add_route(url='', methods=None, **kwargs):
             self._api.add_url_rule(
@@ -126,8 +123,8 @@ class AutoCrud(object):
         if 'FETCH' in model.__methods__:
             add_route(methods=['FETCH'])
 
-        cols = list(model().__table__.primary_key.columns)
-        pk_type = cols[0].type.python_type.__name__ if len(cols) > 0 else 'string'
+        pks = list(model().__table__.primary_key.columns)
+        pk_type = pks[0].type.python_type.__name__ if len(pks) > 0 else 'string'
         add_route('/<{}:{}>'.format(pk_type, 'resource_id'), model.__methods__ - {'POST', 'FETCH'})
         self.models[model.__name__] = model
 

@@ -37,9 +37,8 @@ from .config import COLLECTION_SUFFIX
 
 
 class Service(MethodView):
-    __db__ = None
-    __model__ = None
-    __collection_name__ = 'resources'
+    _db = None
+    _model = None
 
     def delete(self, resource_id):
         """
@@ -47,8 +46,8 @@ class Service(MethodView):
         :param resource_id:
         :return:
         """
-        model = self.__model__
-        session = self.__db__.session()
+        model = self._model
+        session = self._db.session()
 
         resource = model.query.get(resource_id)
         if not resource:
@@ -64,9 +63,9 @@ class Service(MethodView):
         :param resource_id:
         :return:
         """
-        response = []
         invalid = []
-        model = self.__model__
+        response = []
+        model = self._model
         export = True if ARGUMENT.STATIC.export in request.args else False
         extended = True if ARGUMENT.STATIC.extended in request.args else False
 
@@ -105,7 +104,7 @@ class Service(MethodView):
             response.append(item)
 
         if export:
-            file_name = self.__collection_name__
+            file_name = self._collection_name
             file_name += ("_" + str(page)) if page else ""
             file_name += ("_" + str(limit)) if limit else ""
             return resp_csv(response, file_name)
@@ -118,8 +117,8 @@ class Service(MethodView):
         :param resource_id:
         :return:
         """
-        model = self.__model__
-        session = self.__db__.session()
+        model = self._model
+        session = self._db.session()
 
         data = request.get_json() or {}
         validate_entity(model, data)
@@ -139,8 +138,8 @@ class Service(MethodView):
 
         :return:
         """
-        model = self.__model__
-        session = self.__db__.session()
+        model = self._model
+        session = self._db.session()
 
         data = request.get_json()
         if not data:
@@ -165,8 +164,8 @@ class Service(MethodView):
         :param resource_id:
         :return:
         """
-        model = self.__model__
-        session = self.__db__.session()
+        model = self._model
+        session = self._db.session()
 
         data = request.get_json() or {}
         validate_entity(model, data)
@@ -192,8 +191,8 @@ class Service(MethodView):
         """
         response = []
         invalid = []
-        model = self.__model__
-        query = self.__db__.session.query(self.__model__)
+        model = self._model
+        query = self._db.session.query(self._model)
 
         data = request.get_json() or {}
         joins = data.get('joins') or {}
@@ -283,7 +282,7 @@ class Service(MethodView):
                 response.append(data)
 
         if export:
-            file_name = self.__collection_name__
+            file_name = self._model.__name__
             file_name += ("_" + str(page)) if page else ""
             file_name += ("_" + str(limit)) if limit else ""
             return resp_csv(response, file_name)
