@@ -29,8 +29,7 @@ class Model(object):
         """
         columns = []
         for c in cls.__table__.columns:
-            is_autoincrement = 'int' in str(c.type).lower() and c.autoincrement
-            if (not c.nullable and not c.primary_key) or (c.primary_key and not is_autoincrement):
+            if (not c.nullable and not c.primary_key) or (c.primary_key and not c.autoincrement):
                 columns.append(c.name)
         return columns
 
