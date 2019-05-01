@@ -2,6 +2,7 @@ from flask import Flask
 
 from flask_admin import Admin
 from flask_admin.contrib.sqla import ModelView
+from sqlalchemy.orm import relationship
 
 from flask_autocrud import Model
 from flask_autocrud import AutoCrud
@@ -20,17 +21,19 @@ class CustomAdminView(ModelView):
     can_export = True
 
 
-class Artist(db.Model, Model):
+class artists(db.Model, Model):
     __tablename__ = "Artist"
     ArtistId = db.Column(db.Integer, primary_key=True)
     Name = db.Column(db.String(80), unique=True, nullable=False)
 
 
-class myalbum(db.Model, Model):
+class albums(db.Model, Model):
     __tablename__ = "Album"
-    AlbumId = db.Column(db.Integer, primary_key=True)
-    mytitle = db.Column('Title', db.String(80), unique=True, nullable=False)
-    ArtistId = db.Column(db.Integer, ForeignKey("Artist.ArtistId"), comment="test column description")
+    __description__ = 'my albums table'
+    id = db.Column('AlbumId', db.Integer, primary_key=True)
+    title = db.Column('Title', db.String(80), unique=True, nullable=False)
+    ArtistId = db.Column(db.Integer, ForeignKey("Artist.ArtistId"), comment="column description")
+    artist = relationship(artists, backref="albums")
 
 
 def main():
@@ -41,7 +44,7 @@ def main():
     app.config['JSON_ADD_STATUS'] = False
 
     db.init_app(app)
-    autocrud = AutoCrud(app, db, models=[Artist, myalbum])
+    autocrud = AutoCrud(app, db, models=[artists, albums])
     admin = Admin(app)
 
     for k, m in autocrud.models.items():
