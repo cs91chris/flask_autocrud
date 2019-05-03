@@ -1,14 +1,10 @@
-from flask import abort
 from flask import request
 
 from sqlalchemy import asc as ASC
 from sqlalchemy import desc as DESC
 
-from .wrapper import resp_json
-
 from .config import GRAMMAR
 from .config import ARGUMENT
-from .config import HTTP_STATUS
 
 
 def valid_number(num):
@@ -37,13 +33,8 @@ def validate_entity(model, data):
     unknown = [k for k in data if k not in fields]
     missing = list(set(model.required()) - set(data.keys()))
 
-    if len(unknown) or len(missing):
-        abort(
-            resp_json({
-                'unknown': unknown,
-                'missing': missing
-            }, code=HTTP_STATUS.UNPROCESSABLE_ENTITY)
-        )
+    return missing if len(missing) else None, \
+           unknown if len(unknown) else None
 
 
 def parsing_query_string(model):

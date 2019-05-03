@@ -32,7 +32,7 @@ class albums(db.Model, Model):
     __description__ = 'my albums table'
     id = db.Column('AlbumId', db.Integer, primary_key=True)
     title = db.Column('Title', db.String(80), unique=True, nullable=False)
-    ArtistId = db.Column(db.Integer, ForeignKey("Artist.ArtistId"), comment="column description")
+    ArtistId = db.Column(db.Integer, ForeignKey("Artist.ArtistId"), nullable=False, comment="column description")
     artist = relationship(artists, backref="albums")
 
 

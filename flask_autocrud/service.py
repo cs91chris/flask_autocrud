@@ -4,6 +4,7 @@ from flask.views import MethodView
 
 from sqlalchemy import inspect
 from sqlalchemy.exc import ArgumentError
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import contains_eager
 
 from sqlalchemy_filters import apply_filters
@@ -104,7 +105,7 @@ class Service(MethodView):
             response.append(item)
 
         if export:
-            file_name = self._collection_name
+            file_name = self._model.__name__
             file_name += ("_" + str(page)) if page else ""
             file_name += ("_" + str(limit)) if limit else ""
             return resp_csv(response, file_name)
@@ -121,7 +122,9 @@ class Service(MethodView):
         session = self._db.session()
 
         data = request.get_json() or {}
-        validate_entity(model, data)
+        _, unknown = validate_entity(model, data)
+        if unknown:
+            return resp_json({'unknown': unknown}, code=HTTP_STATUS.UNPROCESSABLE_ENTITY)
 
         resource = model.query.get(resource_id)
         if not resource:
@@ -146,13 +149,23 @@ class Service(MethodView):
             return resp_json({'message': 'Bad Request'}, code=HTTP_STATUS.BAD_REQUEST)
 
         validate_entity(model, data)
+        missing, unknown = validate_entity(model, data)
+        if unknown or missing:
+            return resp_json({
+                'unknown': unknown or [],
+                'missing': missing or []
+            }, code=HTTP_STATUS.UNPROCESSABLE_ENTITY)
 
         resource = model.query.filter_by(**data).first()
         if not resource:
             resource = model(**data)
-            session.add(resource)
-            session.commit()
-            code = HTTP_STATUS.CREATED
+            try:
+                session.add(resource)
+                session.commit()
+            except IntegrityError:
+                code = HTTP_STATUS.CONFLICT
+            else:
+                code = HTTP_STATUS.CREATED
         else:
             code = HTTP_STATUS.CONFLICT
 
@@ -169,6 +182,9 @@ class Service(MethodView):
 
         data = request.get_json() or {}
         validate_entity(model, data)
+        _, unknown = validate_entity(model, data)
+        if unknown:
+            return resp_json({'unknown': unknown}, code=HTTP_STATUS.UNPROCESSABLE_ENTITY)
 
         resource = model.query.get(resource_id)
         if resource:
@@ -259,6 +275,7 @@ class Service(MethodView):
             return resp_json(invalid, 'invalid', code=HTTP_STATUS.BAD_REQUEST)
 
         query, pagination = apply_pagination(query, page, limit)
+        cap.logger.debug(query)
 
         for r in query.all():
             zipkeys = {}
@@ -273,10 +290,8 @@ class Service(MethodView):
                         del data[key]
 
                 for zk, value in zipkeys.items():
-                    response.append({
-                        **data,
-                        **{zk+k: v for k, v in value[0].items()}
-                    })
+                    for i in value:
+                        response.append({**data, **{zk+k: v for k, v in i.items()}})
 
             if len(zipkeys.keys()) == 0:
                 response.append(data)
