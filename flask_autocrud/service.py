@@ -7,15 +7,15 @@ from sqlalchemy.exc import ArgumentError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import contains_eager
 
-from sqlalchemy_filters import apply_filters
-from sqlalchemy_filters import apply_loads
 from sqlalchemy_filters import apply_sort
+from sqlalchemy_filters import apply_loads
+from sqlalchemy_filters import apply_filters
 from sqlalchemy_filters import apply_pagination
 
 from sqlalchemy_filters.exceptions import BadSpec
+from sqlalchemy_filters.exceptions import BadSortFormat
 from sqlalchemy_filters.exceptions import FieldNotFound
 from sqlalchemy_filters.exceptions import BadFilterFormat
-from sqlalchemy_filters.exceptions import BadSortFormat
 
 from .wrapper import resp_csv
 from .wrapper import resp_json
@@ -76,7 +76,7 @@ class Service(MethodView):
                 return resp_json({'message': 'Not Found'}, code=HTTP_STATUS.NOT_FOUND)
             return response_with_links(resource)
 
-        if request.path.endswith('meta'):
+        if request.path.endswith(cap.config.get('AUTOCRUD_METADATA_URL')):
             return resp_json(model.description())
 
         page, limit, error = get_pagination_params(cap.config, request.args)
