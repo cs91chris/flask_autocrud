@@ -24,7 +24,7 @@ class Model(object):
 
         :return:
         """
-        return self.primary_key()
+        return str(getattr(self, self.primary_key_field()))
 
     @classmethod
     def _load_cols(cls):
@@ -95,7 +95,7 @@ class Model(object):
         return columns
 
     @classmethod
-    def primary_key(cls):
+    def primary_key_field(cls):
         """
 
         :return:
@@ -121,7 +121,7 @@ class Model(object):
             description['fields'].append({
                 'name': col,
                 'type': c.type.python_type.__name__,
-                'primaryKey': c.primary_key,
+                'primaryKey': c.primary_key_field,
                 'autoincrement': c.autoincrement,
                 'nullable': c.nullable,
                 'unique': c.unique,
@@ -140,16 +140,16 @@ class Model(object):
             value = result[col] = getattr(self, col)
 
             if isinstance(value, Decimal):
-                result[col] = float(result[col])
+                result[col] = float(value)
             elif isinstance(value, datetime.datetime):
                 result[col] = value.isoformat()
 
         if rel is True:
             for r in inspect(self.__class__).relationships:
-                instance = getattr(self, r.key)
-                if isinstance(instance, Model):
+                _rel = getattr(self, r.key)
+                if isinstance(_rel, Model) or _rel is None:
                     result.update({
-                        r.key: instance.to_dict()
+                        r.key: _rel.to_dict() if _rel else r.argument().to_dict()
                     })
 
                     for i in r.local_columns:
@@ -175,7 +175,7 @@ class Model(object):
 
         :return:
         """
-        return "{}/{}".format(self.__url__, self.primary_key())
+        return "{}/{}".format(self.__url__, str(self))
 
     def update(self, attributes):
         """

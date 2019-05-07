@@ -71,8 +71,7 @@ def from_model_to_dict(data):
                 v = float(v)
             elif isinstance(v, datetime):
                 v = v.isoformat()
-            else:
-                v = str(v) if v else v
+
             resp.update({k: v})
     return resp
 
@@ -118,10 +117,10 @@ def parsing_query_string(model):
     invalid = []
 
     for k, v in request.args.items():
-        if k in ARGUMENT.STATIC.__dict__.keys():
+        if k in ARGUMENT.STATIC.__dict__.values():
             continue
 
-        if k.startswith('_') or not v or v == '':
+        if k.startswith('_') and k not in ARGUMENT.DYNAMIC.__dict__.values():
             invalid.append(k)
 
         elif hasattr(model, k):

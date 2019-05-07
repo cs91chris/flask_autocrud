@@ -156,5 +156,5 @@ class AutoCrud(object):
         def index():
             routes = {}
             for name, cls in self.models.items():
-                routes[name] = "{}{{/{}}}".format(cls.__url__, cls.primary_key())
+                routes[name] = "{}{{/{}}}".format(cls.__url__, cls.primary_key_field())
             return routes

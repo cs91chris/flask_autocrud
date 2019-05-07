@@ -10,6 +10,8 @@ from sqlalchemy.orm import contains_eager
 import sqlalchemy_filters as sqlaf
 from sqlalchemy_filters import exceptions
 
+from flask_response_builder.dictutils import to_flatten
+
 from . import utils as util
 from .config import ARGUMENT
 from .config import GRAMMAR
@@ -27,19 +29,118 @@ class Service(MethodView):
         :param resource_id:
         :return:
         """
-        model = self._model
-        session = self._db.session()
+        @self._response.no_content
+        def _delete():
+            mime_type, _ = self._response.get_mimetype_accept()
 
-        resource = model.query.get(resource_id)
-        if not resource:
-            _, builder = self._response.get_mimetype_accept()
-            return self._response.build_response(
-                builder, ({'message': 'Not Found'}, HTTP_STATUS.NOT_FOUND)
-            )
+            model = self._model
+            session = self._db.session()
+            resource = model.query.get(resource_id)
 
-        session.delete(resource)
-        session.commit()
-        return self._response.no_content()
+            if not resource:
+                return (
+                    {'message': 'Not Found'},
+                    {'Content-Type': mime_type},
+                    HTTP_STATUS.NOT_FOUND
+                )
+
+            session.delete(resource)
+            session.commit()
+
+        return _delete()
+
+    def patch(self, resource_id):
+        """
+
+        :param resource_id:
+        :return:
+        """
+
+        @self._response.on_accept()
+        def _patch():
+            model = self._model
+            session = self._db.session()
+            data = request.get_json() or {}
+            _, unknown = util.validate_entity(model, data)
+
+            if unknown:
+                return {'unknown': unknown}, HTTP_STATUS.UNPROCESSABLE_ENTITY
+
+            resource = model.query.get(resource_id)
+            if not resource:
+                return {'message': 'Not Found'}, HTTP_STATUS.NOT_FOUND
+
+            resource.update(data)
+            session.merge(resource)
+            session.commit()
+            return resource.to_dict(), util.links_header(resource)
+        return _patch()
+
+    def post(self):
+        """
+
+        :return:
+        """
+        @self._response.on_accept()
+        def _post():
+            model = self._model
+            session = self._db.session()
+            data = request.get_json()
+
+            if not data:
+                return {'message': 'Not Found'}, HTTP_STATUS.BAD_REQUEST
+
+            missing, unknown = util.validate_entity(model, data)
+            if unknown or missing:
+                return {
+                    'unknown': unknown or [],
+                    'missing': missing or []
+                }, HTTP_STATUS.UNPROCESSABLE_ENTITY
+
+            resource = model.query.filter_by(**data).first()
+
+            try:
+                if resource:
+                    raise IntegrityError(statement=None, params=None, orig=None)
+
+                resource = model(**data)
+                session.add(resource)
+                session.commit()
+            except IntegrityError:
+                return {'message': 'Conflict'}, HTTP_STATUS.CONFLICT
+
+            return data, util.location_header(resource), HTTP_STATUS.CREATED
+        return _post()
+
+    def put(self, resource_id):
+        """
+
+        :param resource_id:
+        :return:
+        """
+        @self._response.on_accept()
+        def _put():
+            model = self._model
+            session = self._db.session()
+            data = request.get_json() or {}
+            _, unknown = util.validate_entity(model, data)
+
+            if unknown:
+                return {'unknown': unknown}, HTTP_STATUS.UNPROCESSABLE_ENTITY
+
+            resource = model.query.get(resource_id)
+            if resource:
+                resource.update(data)
+                session.merge(resource)
+                session.commit()
+                return resource.to_dict(), util.links_header(resource)
+
+            resource = model(**data)
+            session.add(resource)
+            session.commit()
+
+            return data, util.location_header(resource), HTTP_STATUS.CREATED
+        return _put()
 
     def get(self, resource_id=None):
         """
@@ -50,8 +151,6 @@ class Service(MethodView):
         invalid = []
         response = []
         model = self._model
-        export = True if ARGUMENT.STATIC.export in request.args else False
-        extended = True if ARGUMENT.STATIC.extended in request.args else False
         _, builder = self._response.get_mimetype_accept()
 
         if resource_id is not None:
@@ -75,14 +174,14 @@ class Service(MethodView):
 
         if len(invalid) > 0:
             return self._response.build_response(
-                builder, ({'message': 'Not Found'}, HTTP_STATUS.BAD_REQUEST)
+                builder, ({'invalid': invalid}, HTTP_STATUS.BAD_REQUEST)
             )
 
         statement, pagination = sqlaf.apply_pagination(statement, page, limit)
         resources = statement.all()
 
         for r in resources:
-            item = r.to_dict(True if extended else False)
+            item = r.to_dict(True if ARGUMENT.STATIC.extended in request.args else False)
             item_keys = item.keys()
 
             if fields:
@@ -91,124 +190,11 @@ class Service(MethodView):
 
             response.append(item)
 
-        if export:
-            file_name = self._model.__name__
-            file_name += ("_" + str(page)) if page else ""
-            file_name += ("_" + str(limit)) if limit else ""
-            return self._response.csv(response, filename=file_name)
+        if ARGUMENT.STATIC.export in request.args:
+            return self._export(response, page, limit)
 
         return self._response.build_response(
             builder, (response, *util.pagination_headers(pagination))
-        )
-
-    def patch(self, resource_id):
-        """
-
-        :param resource_id:
-        :return:
-        """
-        model = self._model
-        session = self._db.session()
-        data = request.get_json() or {}
-        _, unknown = util.validate_entity(model, data)
-        _, builder = self._response.get_mimetype_accept()
-
-        if unknown:
-            return self._response.build_response(
-                builder, ({'unknown': unknown}, HTTP_STATUS.UNPROCESSABLE_ENTITY)
-            )
-
-        resource = model.query.get(resource_id)
-        if not resource:
-            return self._response.build_response(
-                builder, ({'message': 'Not Found'}, HTTP_STATUS.NOT_FOUND)
-            )
-
-        resource.update(data)
-        session.merge(resource)
-        session.commit()
-
-        return self._response.build_response(
-            builder, (resource.to_dict(), util.links_header(resource))
-        )
-
-    def post(self):
-        """
-
-        :return:
-        """
-        model = self._model
-        session = self._db.session()
-        data = request.get_json()
-        _, builder = self._response.get_mimetype_accept()
-
-        if not data:
-            return self._response.build_response(
-                builder, ({'message': 'Not Found'}, HTTP_STATUS.BAD_REQUEST)
-            )
-
-        missing, unknown = util.validate_entity(model, data)
-        if unknown or missing:
-            return self._response.build_response(
-                builder, ({
-                    'unknown': unknown or [],
-                    'missing': missing or []
-                }, HTTP_STATUS.UNPROCESSABLE_ENTITY)
-            )
-
-        resource = model.query.filter_by(**data).first()
-        if not resource:
-            resource = model(**data)
-            try:
-                session.add(resource)
-                session.commit()
-            except IntegrityError:
-                code = HTTP_STATUS.CONFLICT
-                data = {'message': 'Conflict'}
-            else:
-                code = HTTP_STATUS.CREATED
-                data = resource.to_dict()
-        else:
-            code = HTTP_STATUS.CONFLICT
-            data = {'message': 'Conflict'}
-
-        return self._response.build_response(
-            builder, (data, util.location_header(resource), code)
-        )
-
-    def put(self, resource_id):
-        """
-
-        :param resource_id:
-        :return:
-        """
-        model = self._model
-        session = self._db.session()
-        data = request.get_json() or {}
-        _, unknown = util.validate_entity(model, data)
-        _, builder = self._response.get_mimetype_accept()
-
-        if unknown:
-            return self._response.build_response(
-                builder, ({'unknown': unknown}, HTTP_STATUS.UNPROCESSABLE_ENTITY)
-            )
-
-        resource = model.query.get(resource_id)
-        if resource:
-            resource.update(data)
-            session.merge(resource)
-            session.commit()
-
-            return self._response.build_response(
-                builder, (resource.to_dict(), util.links_header(resource))
-            )
-
-        resource = model(**data)
-        session.add(resource)
-        session.commit()
-
-        return self._response.build_response(
-            builder, (data, util.location_header(resource), HTTP_STATUS.CREATED)
         )
 
     def fetch(self):
@@ -216,19 +202,20 @@ class Service(MethodView):
 
         :return:
         """
+        _, builder = self._response.get_mimetype_accept()
+
         invalid = []
         model = self._model
         query = self._db.session.query(self._model)
-        _, builder = self._response.get_mimetype_accept()
 
         data = request.get_json() or {}
-        joins = data.get('joins') or {}
-        filters = data.get('filters') or []
         fields = data.get('fields') or []
-        sort = data.get('sortBy') or []
+        joins = data.get('related') or {}
+        filters = data.get('filters') or []
+        sort = data.get('sorting') or []
+        pagination = data.get('pagination') or {}
 
-        page, limit, error = util.get_pagination_params(cap.config, data.get('pagination') or {})
-        export = True if ARGUMENT.STATIC.export in request.args else False
+        page, limit, error = util.get_pagination_params(cap.config, pagination)
         invalid += error
 
         cap.logger.debug(query)
@@ -247,20 +234,20 @@ class Service(MethodView):
         for k in joins.keys():
             instance = None
             for r in inspect(model).relationships:
-                if r.key == k.lower() or r.key.split('_collection')[0] == k.lower():
+                if "_".join(r.key.split('_')[:-1]) == k.lower():
                     instance = getattr(model, r.key)
 
             if instance is not None:
-                joint = joins.get(k)
+                column = joins.get(k)
                 try:
                     load_column = contains_eager(instance)
-                    if len(joint) > 0 and joint[0] != GRAMMAR.ALL:
-                        load_column = load_column.load_only(*joint)
+                    if len(column) > 0 and column[0] != GRAMMAR.ALL:
+                        load_column = load_column.load_only(*column)
 
                     query = query.join(instance, aliased=False).options(load_column)
                     cap.logger.debug(query)
                 except ArgumentError:
-                    invalid += joint
+                    invalid += column
             else:
                 invalid.append(k)
 
@@ -294,18 +281,33 @@ class Service(MethodView):
         query, pagination = sqlaf.apply_pagination(query, page, limit)
         cap.logger.debug(query)
 
+        response = []
         result = query.all()
 
-        if export:
-            file_name = self._model.__name__
-            file_name += ("_" + str(page)) if page else ""
-            file_name += ("_" + str(limit)) if limit else ""
-            return self._response.csv(result, filename=file_name, to_dict=util.from_model_to_dict)
+        if ARGUMENT.STATIC.export in request.args:
+            return self._export(response, page, limit)
 
-        response = []
         for r in result:
-            response.append(util.from_model_to_dict(r))
+            if ARGUMENT.STATIC.as_table in request.args:
+                response += to_flatten(r, to_dict=util.from_model_to_dict)
+            else:
+                response.append(util.from_model_to_dict(r))
 
         return self._response.build_response(
             builder, (response, *util.pagination_headers(pagination))
         )
+
+    def _export(self, response, page, limit):
+        """
+
+        :param response:
+        :param page:
+        :param limit:
+        :return:
+        """
+        filename = request.args.get(ARGUMENT.STATIC.export) or "{}{}{}".format(
+            self._model.__name__,
+            "_{}".format(page) if page else "",
+            "_{}".format(limit) if limit else ""
+        )
+        return self._response.csv(response, filename=filename)

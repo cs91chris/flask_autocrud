@@ -11,14 +11,15 @@ class GRAMMAR:
 
 class ARGUMENT:
     class STATIC:
-        page = 'page'
-        limit = 'limit'
-        export = 'export'
-        extended = 'extended'
+        page = '_page'
+        limit = '_limit'
+        export = '_export'
+        extended = '_extended'
+        as_table = '_as_table'
 
     class DYNAMIC:
-        sort = 'sort'
-        fields = 'fields'
+        sort = '_sort'
+        fields = '_fields'
 
 
 class HTTP_STATUS:

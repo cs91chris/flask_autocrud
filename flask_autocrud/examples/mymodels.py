@@ -33,15 +33,15 @@ class albums(db.Model, Model):
     id = db.Column('AlbumId', db.Integer, primary_key=True)
     title = db.Column('Title', db.String(80), unique=True, nullable=False)
     ArtistId = db.Column(db.Integer, ForeignKey("Artist.ArtistId"), nullable=False, comment="column description")
-    artist = relationship(artists, backref="albums")
+    artists = relationship(artists, backref="albums")  # NOTE: it must be the same name of related class
 
 
 def main():
     app = Flask(__name__)
     app.config['SECRET_KEY'] = 'more_difficult_string'
+    app.config['RB_DEFAULT_ACCEPTABLE_MIMETYPES'] = ['application/json', 'application/xml']
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite:///flask_autocrud/examples/db.sqlite3'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['JSON_ADD_STATUS'] = False
 
     db.init_app(app)
     autocrud = AutoCrud(app, db, models=[artists, albums])
