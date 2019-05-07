@@ -1,7 +1,5 @@
 from flask import Blueprint
 
-from flask_json import as_json
-
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -10,9 +8,11 @@ from flask_autocrud.service import Service
 
 from .config import set_default_config
 
+from flask_response_builder import ResponseBuilder
+
 
 class AutoCrud(object):
-    def __init__(self, app=None, db=None, schema=None, models=None):
+    def __init__(self, app=None, db=None, schema=None, models=None, **kwargs):
         """
 
         :param db:
@@ -20,23 +20,40 @@ class AutoCrud(object):
         :param schema:
         :param models:
         """
-        self.models = {}
+        self._models = {}
         self._app = app
         self._db = db
         self._schema = schema
-        self._user_models = models
         self._api = None
         self._subdomain = None
         self._baseurl = None
+        self._response_builder = ResponseBuilder()
 
         if app is not None:
             self.init_app(
                 self._app, self._db,
                 schema=self._schema,
-                models=self._user_models
+                models=models,
+                **kwargs
             )
 
-    def init_app(self, app, db, schema=None, models=None):
+    @property
+    def response_builder(self):
+        """
+
+        :return:
+        """
+        return self._response_builder
+
+    @property
+    def models(self):
+        """
+
+        :return:
+        """
+        return self._models
+
+    def init_app(self, app, db, schema=None, models=None, **kwargs):
         """
 
         :param app:
@@ -48,7 +65,6 @@ class AutoCrud(object):
         self._app = app
         self._db = db
         self._schema = schema
-        self._user_models = models
 
         if self._db is None:
             raise AttributeError(
@@ -57,13 +73,15 @@ class AutoCrud(object):
             )
 
         set_default_config(self._app)
+        self.response_builder.init_app(self._app, **kwargs)
+
         self._subdomain = self._app.config['AUTOCRUD_SUBDOMAIN']
         self._baseurl = self._app.config['AUTOCRUD_BASE_URL']
         self._api = Blueprint('flask_autocrud', __name__, subdomain=self._subdomain)
 
-        if self._user_models:
-            for user_model in self._user_models:
-                self._register_model(user_model)
+        if models:
+            for m in models:
+                self._register_model(m)
         else:
             automap_model = automap_base(declarative_base(cls=(db.Model, Model)))
             automap_model.prepare(self._db.engine, reflect=True, schema=self._schema)
@@ -93,12 +111,12 @@ class AutoCrud(object):
         """
         class_name = model.__name__
         model.__url__ = "{}/{}".format(self._baseurl, class_name.lower())
-
         view = type(
             class_name + 'Service',
             (Service,), {
                 '_model': model,
-                '_db': self._db
+                '_db': self._db,
+                '_response': self.response_builder
             }
         ).as_view(class_name.lower())
 
@@ -134,7 +152,7 @@ class AutoCrud(object):
         :return:
         """
         @self._api.route(self._baseurl + self._app.config['AUTOCRUD_RESOURCES_URL'])
-        @as_json
+        @self.response_builder.on_accept()
         def index():
             routes = {}
             for name, cls in self.models.items():

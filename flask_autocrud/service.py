@@ -7,39 +7,19 @@ from sqlalchemy.exc import ArgumentError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import contains_eager
 
-from sqlalchemy_filters import apply_sort
-from sqlalchemy_filters import apply_loads
-from sqlalchemy_filters import apply_filters
-from sqlalchemy_filters import apply_pagination
+import sqlalchemy_filters as sqlaf
+from sqlalchemy_filters import exceptions
 
-from sqlalchemy_filters.exceptions import BadSpec
-from sqlalchemy_filters.exceptions import BadSortFormat
-from sqlalchemy_filters.exceptions import FieldNotFound
-from sqlalchemy_filters.exceptions import BadFilterFormat
-
-from .wrapper import resp_csv
-from .wrapper import resp_json
-from .wrapper import no_content
-from .wrapper import response_with_links
-from .wrapper import response_with_location
-from .wrapper import response_with_pagination
-
-from .validators import validate_entity
-from .validators import parsing_query_string
-
-from .utils import get_pagination_params
-from .utils import from_model_to_dict
-from .utils import to_flatten_dict
-
+from . import utils as util
 from .config import ARGUMENT
 from .config import GRAMMAR
 from .config import HTTP_STATUS
-from .config import COLLECTION_SUFFIX
 
 
 class Service(MethodView):
     _db = None
     _model = None
+    _response = None
 
     def delete(self, resource_id):
         """
@@ -52,11 +32,14 @@ class Service(MethodView):
 
         resource = model.query.get(resource_id)
         if not resource:
-            return resp_json({'message': 'Not Found'}, code=HTTP_STATUS.NOT_FOUND)
+            _, builder = self._response.get_mimetype_accept()
+            return self._response.build_response(
+                builder, ({'message': 'Not Found'}, HTTP_STATUS.NOT_FOUND)
+            )
 
         session.delete(resource)
         session.commit()
-        return no_content()
+        return self._response.no_content()
 
     def get(self, resource_id=None):
         """
@@ -69,26 +52,33 @@ class Service(MethodView):
         model = self._model
         export = True if ARGUMENT.STATIC.export in request.args else False
         extended = True if ARGUMENT.STATIC.extended in request.args else False
+        _, builder = self._response.get_mimetype_accept()
 
         if resource_id is not None:
             resource = model.query.get(resource_id)
             if not resource:
-                return resp_json({'message': 'Not Found'}, code=HTTP_STATUS.NOT_FOUND)
-            return response_with_links(resource)
+                return self._response.build_response(
+                    builder, ({'message': 'Not Found'}, HTTP_STATUS.NOT_FOUND)
+                )
+            return self._response.build_response(
+                builder, (resource.to_dict(), util.links_header(resource))
+            )
 
         if request.path.endswith(cap.config.get('AUTOCRUD_METADATA_URL')):
-            return resp_json(model.description())
+            return self._response.build_response(builder, model.description())
 
-        page, limit, error = get_pagination_params(cap.config, request.args)
+        page, limit, error = util.get_pagination_params(cap.config, request.args)
         invalid += error
 
-        fields, statement, error = parsing_query_string(model)
+        fields, statement, error = util.parsing_query_string(model)
         invalid += error
 
         if len(invalid) > 0:
-            return resp_json(invalid, 'invalid', code=HTTP_STATUS.BAD_REQUEST)
+            return self._response.build_response(
+                builder, ({'message': 'Not Found'}, HTTP_STATUS.BAD_REQUEST)
+            )
 
-        statement, pagination = apply_pagination(statement, page, limit)
+        statement, pagination = sqlaf.apply_pagination(statement, page, limit)
         resources = statement.all()
 
         for r in resources:
@@ -99,18 +89,17 @@ class Service(MethodView):
                 for k in set(item_keys) - set(fields):
                     item.pop(k)
 
-            if export and extended:
-                item = to_flatten_dict(item)
-
             response.append(item)
 
         if export:
             file_name = self._model.__name__
             file_name += ("_" + str(page)) if page else ""
             file_name += ("_" + str(limit)) if limit else ""
-            return resp_csv(response, file_name)
+            return self._response.csv(response, filename=file_name)
 
-        return response_with_pagination(response, pagination)
+        return self._response.build_response(
+            builder, (response, *util.pagination_headers(pagination))
+        )
 
     def patch(self, resource_id):
         """
@@ -120,21 +109,28 @@ class Service(MethodView):
         """
         model = self._model
         session = self._db.session()
-
         data = request.get_json() or {}
-        _, unknown = validate_entity(model, data)
+        _, unknown = util.validate_entity(model, data)
+        _, builder = self._response.get_mimetype_accept()
+
         if unknown:
-            return resp_json({'unknown': unknown}, code=HTTP_STATUS.UNPROCESSABLE_ENTITY)
+            return self._response.build_response(
+                builder, ({'unknown': unknown}, HTTP_STATUS.UNPROCESSABLE_ENTITY)
+            )
 
         resource = model.query.get(resource_id)
         if not resource:
-            return resp_json({'message': 'Not Found'}, code=HTTP_STATUS.NOT_FOUND)
+            return self._response.build_response(
+                builder, ({'message': 'Not Found'}, HTTP_STATUS.NOT_FOUND)
+            )
 
         resource.update(data)
         session.merge(resource)
         session.commit()
 
-        return response_with_links(resource)
+        return self._response.build_response(
+            builder, (resource.to_dict(), util.links_header(resource))
+        )
 
     def post(self):
         """
@@ -143,18 +139,22 @@ class Service(MethodView):
         """
         model = self._model
         session = self._db.session()
-
         data = request.get_json()
-        if not data:
-            return resp_json({'message': 'Bad Request'}, code=HTTP_STATUS.BAD_REQUEST)
+        _, builder = self._response.get_mimetype_accept()
 
-        validate_entity(model, data)
-        missing, unknown = validate_entity(model, data)
+        if not data:
+            return self._response.build_response(
+                builder, ({'message': 'Not Found'}, HTTP_STATUS.BAD_REQUEST)
+            )
+
+        missing, unknown = util.validate_entity(model, data)
         if unknown or missing:
-            return resp_json({
-                'unknown': unknown or [],
-                'missing': missing or []
-            }, code=HTTP_STATUS.UNPROCESSABLE_ENTITY)
+            return self._response.build_response(
+                builder, ({
+                    'unknown': unknown or [],
+                    'missing': missing or []
+                }, HTTP_STATUS.UNPROCESSABLE_ENTITY)
+            )
 
         resource = model.query.filter_by(**data).first()
         if not resource:
@@ -164,12 +164,17 @@ class Service(MethodView):
                 session.commit()
             except IntegrityError:
                 code = HTTP_STATUS.CONFLICT
+                data = {'message': 'Conflict'}
             else:
                 code = HTTP_STATUS.CREATED
+                data = resource.to_dict()
         else:
             code = HTTP_STATUS.CONFLICT
+            data = {'message': 'Conflict'}
 
-        return response_with_location(resource, code)
+        return self._response.build_response(
+            builder, (data, util.location_header(resource), code)
+        )
 
     def put(self, resource_id):
         """
@@ -179,12 +184,14 @@ class Service(MethodView):
         """
         model = self._model
         session = self._db.session()
-
         data = request.get_json() or {}
-        validate_entity(model, data)
-        _, unknown = validate_entity(model, data)
+        _, unknown = util.validate_entity(model, data)
+        _, builder = self._response.get_mimetype_accept()
+
         if unknown:
-            return resp_json({'unknown': unknown}, code=HTTP_STATUS.UNPROCESSABLE_ENTITY)
+            return self._response.build_response(
+                builder, ({'unknown': unknown}, HTTP_STATUS.UNPROCESSABLE_ENTITY)
+            )
 
         resource = model.query.get(resource_id)
         if resource:
@@ -192,31 +199,36 @@ class Service(MethodView):
             session.merge(resource)
             session.commit()
 
-            return response_with_links(resource)
+            return self._response.build_response(
+                builder, (resource.to_dict(), util.links_header(resource))
+            )
 
         resource = model(**data)
         session.add(resource)
         session.commit()
 
-        return response_with_links(resource, HTTP_STATUS.CREATED)
+        return self._response.build_response(
+            builder, (data, util.location_header(resource), HTTP_STATUS.CREATED)
+        )
 
     def fetch(self):
         """
 
         :return:
         """
-        response = []
         invalid = []
         model = self._model
         query = self._db.session.query(self._model)
+        _, builder = self._response.get_mimetype_accept()
 
         data = request.get_json() or {}
         joins = data.get('joins') or {}
         filters = data.get('filters') or []
         fields = data.get('fields') or []
         sort = data.get('sortBy') or []
+
+        page, limit, error = util.get_pagination_params(cap.config, data.get('pagination') or {})
         export = True if ARGUMENT.STATIC.export in request.args else False
-        page, limit, error = get_pagination_params(cap.config, data.get('pagination') or {})
         invalid += error
 
         cap.logger.debug(query)
@@ -226,8 +238,11 @@ class Service(MethodView):
                 invalid.append(k)
 
         if len(invalid) == 0 and len(fields) > 0:
-            query = apply_loads(query, fields)
-            cap.logger.debug(query)
+            try:
+                query = sqlaf.apply_loads(query, fields)
+                cap.logger.debug(query)
+            except exceptions.BadLoadFormat:
+                invalid.append(fields)
 
         for k in joins.keys():
             instance = None
@@ -251,55 +266,46 @@ class Service(MethodView):
 
         for f in filters:
             try:
-                query = apply_filters(query, f)
+                query = sqlaf.apply_filters(query, f)
                 cap.logger.debug(query)
-            except BadSpec:
+            except exceptions.BadSpec:
                 invalid.append(f.get('model'))
-            except FieldNotFound:
+            except exceptions.FieldNotFound:
                 invalid.append(f.get('field'))
-            except BadFilterFormat:
+            except exceptions.BadFilterFormat:
                 invalid.append(f.get('op'))
 
         for s in sort:
             try:
-                query = apply_sort(query, s)
+                query = sqlaf.apply_sort(query, s)
                 cap.logger.debug(query)
-            except BadSpec:
+            except exceptions.BadSpec:
                 invalid.append(s.get('model'))
-            except FieldNotFound:
+            except exceptions.FieldNotFound:
                 invalid.append(s.get('field'))
-            except BadSortFormat:
+            except exceptions.BadSortFormat:
                 invalid.append(s.get('direction'))
 
         if len(invalid) > 0:
-            return resp_json(invalid, 'invalid', code=HTTP_STATUS.BAD_REQUEST)
+            return self._response.build_response(
+                builder, ({'invalid': invalid}, HTTP_STATUS.BAD_REQUEST)
+            )
 
-        query, pagination = apply_pagination(query, page, limit)
+        query, pagination = sqlaf.apply_pagination(query, page, limit)
         cap.logger.debug(query)
 
-        for r in query.all():
-            zipkeys = {}
-            data = from_model_to_dict(r.__dict__)
-
-            if export:
-                data = to_flatten_dict(data)
-
-                for key in list(data.keys()):
-                    if isinstance(data.get(key), list):
-                        zipkeys.update({key.rstrip(COLLECTION_SUFFIX) + '_': data.get(key)})
-                        del data[key]
-
-                for zk, value in zipkeys.items():
-                    for i in value:
-                        response.append({**data, **{zk+k: v for k, v in i.items()}})
-
-            if len(zipkeys.keys()) == 0:
-                response.append(data)
+        result = query.all()
 
         if export:
             file_name = self._model.__name__
             file_name += ("_" + str(page)) if page else ""
             file_name += ("_" + str(limit)) if limit else ""
-            return resp_csv(response, file_name)
+            return self._response.csv(result, filename=file_name, to_dict=util.from_model_to_dict)
 
-        return response_with_pagination(response, pagination)
+        response = []
+        for r in result:
+            response.append(util.from_model_to_dict(r))
+
+        return self._response.build_response(
+            builder, (response, *util.pagination_headers(pagination))
+        )
