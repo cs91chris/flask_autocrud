@@ -164,7 +164,7 @@ class Model(object):
         """
         link_dict = {'self': self.resource_uri()}
         for r in inspect(self.__class__).relationships:
-            if 'collection' not in r.key:
+            if r.key.split('_')[:-1] == 'collection':
                 instance = getattr(self, r.key)
                 if instance:
                     link_dict[str(r.key)] = instance.resource_uri()
@@ -175,7 +175,8 @@ class Model(object):
 
         :return:
         """
-        return "{}/{}".format(self.__url__, str(self))
+        pk = getattr(self, self.primary_key_field())
+        return "{}/{}".format(self.__url__, pk) if pk else None
 
     def update(self, attributes):
         """
