@@ -13,22 +13,24 @@ class CustomAdminView(ModelView):
     column_display_pk = True
     can_set_page_size = True
     can_view_details = True
+    column_auto_select_related = True
+    # column_display_all_relations = True
 
 
 def main():
     app = Flask(__name__)
     app.config['SECRET_KEY'] = 'more_difficult_string'
+    app.config['FLASK_ADMIN_SWATCH'] = 'cosmo'
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite:///flask_autocrud/examples/db.sqlite3'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['JSON_ADD_STATUS'] = False
 
+    admin = Admin(app)
     db = SQLAlchemy(app)
-
     autocrud = AutoCrud(app, db)
-    admin = Admin(app, template_mode='bootstrap3')
 
     for k, m in autocrud.models.items():
         setattr(CustomAdminView, 'column_searchable_list', m.searchable())
+        setattr(CustomAdminView, 'column_list', m.columns().keys()[:5])  # display max 5 columns in table
         admin.add_view(CustomAdminView(m, db.session))
 
     app.run(debug=True)

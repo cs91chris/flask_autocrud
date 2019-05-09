@@ -44,8 +44,8 @@ def main():
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     db.init_app(app)
-    autocrud = AutoCrud(app, db, models=[artists, albums])
     admin = Admin(app)
+    autocrud = AutoCrud(app, db, models=[artists, albums])
 
     for k, m in autocrud.models.items():
         setattr(CustomAdminView, 'column_searchable_list', m.searchable())
