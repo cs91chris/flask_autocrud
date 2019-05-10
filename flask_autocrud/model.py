@@ -11,8 +11,8 @@ from .config import MODEL_VERSION
 
 
 class Model(object):
-    _pks = None
-    _cols = None
+    __pks__ = None
+    __cols__ = None
     __url__ = None
     __table__ = None
     __description__ = None
@@ -31,22 +31,17 @@ class Model(object):
         """
 
         """
-        cls._pks = []
-        cls._cols = {}
+        cls.__pks__ = []
+        cls.__cols__ = {}
 
-        # CHECK: seems bad but it works
-        if cls.__module__ == 'sqlalchemy.ext.automap':
-            cls._cols = cls.__table__.columns
-            cls._pks += [i.key for i in list(cls.__table__.primary_key.columns)]
-        else:
-            for i in cls.__dict__:
-                if not i.startswith('_'):
-                    col = getattr(cls, i)
-                    if isinstance(col, InstrumentedAttribute) and \
-                            not isinstance(col.comparator, RelationshipProperty.Comparator):
-                        cls._cols[i] = col
-                        if col.primary_key:
-                            cls._pks.append(i)
+        for i in cls.__dict__:
+            if not i.startswith('_'):
+                col = getattr(cls, i)
+                if isinstance(col, InstrumentedAttribute) and \
+                        not isinstance(col.comparator, RelationshipProperty.Comparator):
+                    cls.__cols__[i] = col
+                    if col.primary_key:
+                        cls.__pks__.append(i)
 
     @classmethod
     def columns(cls):
@@ -54,9 +49,9 @@ class Model(object):
 
         :return:
         """
-        if cls._cols is None:
+        if cls.__cols__ is None:
             cls._load_cols()
-        return cls._cols
+        return cls.__cols__
 
     @classmethod
     def required(cls):
@@ -100,9 +95,9 @@ class Model(object):
 
         :return:
         """
-        if cls._pks is None:
+        if cls.__pks__ is None:
             cls._load_cols()
-        return cls._pks[0]
+        return cls.__pks__[0]
 
     @classmethod
     def description(cls):
@@ -121,7 +116,7 @@ class Model(object):
             description['fields'].append({
                 'name': col,
                 'type': c.type.python_type.__name__,
-                'primaryKey': c.primary_key_field,
+                'primaryKey': c.primary_key,
                 'autoincrement': c.autoincrement,
                 'nullable': c.nullable,
                 'unique': c.unique,
@@ -164,7 +159,7 @@ class Model(object):
         """
         link_dict = {'self': self.resource_uri()}
         for r in inspect(self.__class__).relationships:
-            if r.key.split('_')[:-1] == 'collection':
+            if not r.uselist:
                 instance = getattr(self, r.key)
                 if instance:
                     link_dict[str(r.key)] = instance.resource_uri()
