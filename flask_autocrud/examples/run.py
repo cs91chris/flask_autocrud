@@ -13,8 +13,6 @@ class CustomAdminView(ModelView):
     column_display_pk = True
     can_set_page_size = True
     can_view_details = True
-    column_auto_select_related = True
-    # column_display_all_relations = True
 
 
 def main():
@@ -30,7 +28,6 @@ def main():
 
     for k, m in autocrud.models.items():
         setattr(CustomAdminView, 'column_searchable_list', m.searchable())
-        setattr(CustomAdminView, 'column_list', m.columns().keys()[:5])  # display max 5 columns in table
         admin.add_view(CustomAdminView(m, db.session))
 
     app.run(debug=True)
