@@ -1,12 +1,18 @@
 class GRAMMAR:
+    ALL = '*'
     SEP = ';'
     NOT = '!'
-    REVERSE = '-'
-    NULL = 'null'
     LIKE = '%'
+    HIDDEN = '_'
+    REVERSE = '-'
+    LT = '__lt__'
+    GT = '__gt__'
+    LTE = '__lte__'
+    GTE = '__gte__'
+    NULL = 'null'
+    ESCAPE = '\\'
     NOT_NULL = NOT + NULL
     NOT_LIKE = NOT + LIKE
-    ALL = '*'
 
 
 class ARGUMENT:
