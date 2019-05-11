@@ -1,9 +1,8 @@
-class GRAMMAR:
+class Grammar:
     ALL = '*'
     SEP = ';'
     NOT = '!'
     LIKE = '%'
-    HIDDEN = '_'
     REVERSE = '-'
     LT = '__lt__'
     GT = '__gt__'
@@ -15,15 +14,15 @@ class GRAMMAR:
     NOT_LIKE = NOT + LIKE
 
 
-class ARGUMENT:
-    class STATIC:
+class Fields:
+    class Static:
         page = '_page'
         limit = '_limit'
         export = '_export'
         extended = '_extended'
         as_table = '_as_table'
 
-    class DYNAMIC:
+    class Dynamic:
         sort = '_sort'
         fields = '_fields'
 

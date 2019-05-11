@@ -1,16 +1,9 @@
-from datetime import datetime
 from decimal import Decimal
-
-from flask import request
-
-from sqlalchemy import asc as sqla_asc
-from sqlalchemy import desc as sqla_desc
-from sqlalchemy.sql.elements import or_
+from datetime import datetime
 
 from .model import Model
 
-from .config import GRAMMAR
-from .config import ARGUMENT
+from .config import Fields
 from .config import HTTP_STATUS
 from .config import COLLECTION_SUFFIX
 
@@ -23,11 +16,11 @@ def get_pagination_params(conf, args):
     :return:
     """
     invalid = []
-    page = valid_number(args.get(ARGUMENT.STATIC.page))
-    limit = valid_number(args.get(ARGUMENT.STATIC.limit))
+    page = valid_number(args.get(Fields.Static.page))
+    limit = valid_number(args.get(Fields.Static.limit))
 
-    invalid.append(ARGUMENT.STATIC.page) if page is False else None
-    invalid.append(ARGUMENT.STATIC.limit) if limit is False else None
+    invalid.append(Fields.Static.page) if page is False else None
+    invalid.append(Fields.Static.limit) if limit is False else None
 
     max_limit = conf.get('AUTOCRUD_MAX_QUERY_LIMIT')
     if max_limit > 0:
@@ -101,78 +94,6 @@ def validate_entity(model, data):
     missing = list(set(model.required()) - set(data.keys()))
 
     return missing if len(missing) else None, unknown if len(unknown) else None
-
-
-def parsing_query_string(model):
-    """
-
-    :param model:
-    :return:
-    """
-    order = []
-    fields = []
-    filters = []
-    invalid = []
-
-    for k, v in request.args.items():
-        if k in ARGUMENT.STATIC.__dict__.values():
-            continue
-
-        if k == ARGUMENT.DYNAMIC.sort:
-            for item in [i for i in v.split(GRAMMAR.SEP) if i != ""]:
-                if item.startswith(GRAMMAR.HIDDEN) or not hasattr(model, item):
-                    invalid.append(item)
-                else:
-                    direction = sqla_desc if item.startswith(GRAMMAR.REVERSE) else sqla_asc
-                    item = item.lstrip(GRAMMAR.REVERSE)
-                    order.append(direction(getattr(model, item)))
-        elif k == ARGUMENT.DYNAMIC.fields:
-            for item in [i for i in v.split(GRAMMAR.SEP) if i != ""]:
-                if item.startswith(GRAMMAR.HIDDEN) or not hasattr(model, item):
-                    invalid.append(item)
-                else:
-                    fields.append(item)
-        elif not k.startswith(GRAMMAR.HIDDEN) and hasattr(model, k):
-            or_filters = []
-            f = getattr(model, k)
-            values = request.args.getlist(k)
-            for _v in values:
-                if _v.startswith(GRAMMAR.GT):
-                    or_filters.append(f > _v.split(GRAMMAR.GT, 1)[1])
-                elif _v.startswith(GRAMMAR.LT):
-                    or_filters.append(f < _v.split(GRAMMAR.LT, 1)[1])
-                elif _v.startswith(GRAMMAR.GTE):
-                    or_filters.append(f >= _v.split(GRAMMAR.GTE, 1)[1])
-                elif _v.startswith(GRAMMAR.LTE):
-                    or_filters.append(f <= _v.split(GRAMMAR.LTE, 1)[1])
-                elif _v.startswith(GRAMMAR.NOT_LIKE):
-                    or_filters.append(f.notilike(_v[2:], escape=GRAMMAR.ESCAPE))
-                elif _v.startswith(GRAMMAR.LIKE):
-                    or_filters.append(f.ilike(_v[1:], escape=GRAMMAR.ESCAPE))
-                else:
-                    items = [i for i in _v.split(GRAMMAR.SEP) if i != ""]
-                    if len(items) > 1:
-                        if items[0].startswith(GRAMMAR.NOT):
-                            items[0] = items[0][1:]
-                            or_filters.append(f.notin_(items))
-                        else:
-                            if items[0].startswith(GRAMMAR.ESCAPE):
-                                items[0] = items[0][1:]
-                            or_filters.append(f.in_(items))
-                    else:
-                        if _v.startswith(GRAMMAR.NOT):
-                            or_filters.append(f is not None if _v == GRAMMAR.NOT_NULL else f != _v[1:])
-                        else:
-                            if _v.startswith(GRAMMAR.ESCAPE):
-                                _v = _v[1:]
-                            or_filters.append(f is None if _v == GRAMMAR.NULL else f == _v)
-            filters.append(or_(*or_filters))
-        else:
-            invalid.append(k)
-
-    query = model.query.filter(*filters).order_by(*order)
-    print(query)
-    return fields, query, invalid
 
 
 def links_header(resource):

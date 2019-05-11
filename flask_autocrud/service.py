@@ -12,8 +12,9 @@ from sqlalchemy_filters import exceptions
 from flask_response_builder.dictutils import to_flatten
 
 from . import utils as util
-from .config import ARGUMENT
-from .config import GRAMMAR
+from .qs2sqla import Qs2Sqla
+from .config import Fields
+from .config import Grammar
 from .config import HTTP_STATUS
 
 
@@ -164,15 +165,17 @@ class Service(MethodView):
         if request.path.endswith(cap.config.get('AUTOCRUD_METADATA_URL')):
             return self._response.build_response(builder, model.description())
 
+        fields = None
+        statement = model.query
         page, limit, error = util.get_pagination_params(cap.config, request.args)
         invalid += error
 
         if cap.config.get('AUTOCRUD_QUERY_STRING_FILTERS_ENABLED') is True:
-            fields, statement, error = util.parsing_query_string(model)
-            invalid += error
-        else:
-            statement = model.query
-            fields = None
+            parser = Qs2Sqla(request.args)
+            parsed = parser.parse(model)
+            fields = parsed.fields
+            invalid += parsed.invalids
+            statement = model.query.filter(*parsed.filters).order_by(*parsed.orders)
 
         if len(invalid) > 0:
             return self._response.build_response(
@@ -183,7 +186,7 @@ class Service(MethodView):
         resources = statement.all()
 
         for r in resources:
-            item = r.to_dict(True if ARGUMENT.STATIC.extended in request.args else False)
+            item = r.to_dict(True if Fields.Static.extended in request.args else False)
             item_keys = item.keys()
 
             if fields:
@@ -192,7 +195,7 @@ class Service(MethodView):
 
             response.append(item)
 
-        if ARGUMENT.STATIC.export in request.args:
+        if Fields.Static.export in request.args:
             return self._export(response, page, limit)
 
         return self._response.build_response(
@@ -238,7 +241,7 @@ class Service(MethodView):
             if instance is not None:
                 _columns = joins.get(k)
                 try:
-                    if len(_columns) > 0 and _columns[0] != GRAMMAR.ALL:
+                    if len(_columns) > 0 and _columns[0] != Grammar.ALL:
                         _invalid = list(set(joins.get(k)) - set(columns))
                         if len(_invalid) > 0:
                             _columns = _invalid
@@ -287,11 +290,11 @@ class Service(MethodView):
         response = []
         result = query.all()
 
-        if ARGUMENT.STATIC.export in request.args:
-            return self._export(response, page, limit)
+        if Fields.Static.export in request.args:
+            return self._export(result, page, limit, to_dict=util.from_model_to_dict)
 
         for r in result:
-            if ARGUMENT.STATIC.as_table in request.args:
+            if Fields.Static.as_table in request.args:
                 response += to_flatten(r, to_dict=util.from_model_to_dict)
             else:
                 response.append(util.from_model_to_dict(r))
@@ -300,7 +303,7 @@ class Service(MethodView):
             builder, (response, *util.pagination_headers(pagination))
         )
 
-    def _export(self, response, page, limit):
+    def _export(self, response, page, limit, **kwargs):
         """
 
         :param response:
@@ -308,9 +311,9 @@ class Service(MethodView):
         :param limit:
         :return:
         """
-        filename = request.args.get(ARGUMENT.STATIC.export) or "{}{}{}".format(
+        filename = request.args.get(Fields.Static.export) or "{}{}{}".format(
             self._model.__name__,
             "_{}".format(page) if page else "",
             "_{}".format(limit) if limit else ""
         )
-        return self._response.csv(response, filename=filename)
+        return self._response.csv(response, filename=filename, **kwargs)
