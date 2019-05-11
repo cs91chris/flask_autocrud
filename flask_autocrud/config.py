@@ -1,4 +1,5 @@
 class Grammar:
+    ESCAPE = '\\'
     ALL = '*'
     SEP = ';'
     NOT = '!'
@@ -9,7 +10,10 @@ class Grammar:
     LTE = '__lte__'
     GTE = '__gte__'
     NULL = 'null'
-    ESCAPE = '\\'
+    RNS = '('
+    RNE = ')'
+    NOT_RNS = NOT + RNS
+    NOT_RNE = RNE
     NOT_NULL = NOT + NULL
     NOT_LIKE = NOT + LIKE
 
