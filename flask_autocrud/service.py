@@ -167,8 +167,12 @@ class Service(MethodView):
         page, limit, error = util.get_pagination_params(cap.config, request.args)
         invalid += error
 
-        fields, statement, error = util.parsing_query_string(model)
-        invalid += error
+        if cap.config.get('AUTOCRUD_QUERY_STRING_FILTERS_ENABLED') is True:
+            fields, statement, error = util.parsing_query_string(model)
+            invalid += error
+        else:
+            statement = model.query
+            fields = None
 
         if len(invalid) > 0:
             return self._response.build_response(

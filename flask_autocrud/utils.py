@@ -29,12 +29,12 @@ def get_pagination_params(conf, args):
     invalid.append(ARGUMENT.STATIC.page) if page is False else None
     invalid.append(ARGUMENT.STATIC.limit) if limit is False else None
 
-    if conf.get('AUTOCRUD_QUERY_LIMIT_ENABLED'):
+    max_limit = conf.get('AUTOCRUD_MAX_QUERY_LIMIT')
+    if max_limit > 0:
         page = 1 if not page else page
-        max_limit = conf.get('AUTOCRUD_MAX_QUERY_LIMIT')
 
         if not limit or limit > max_limit:
-            limit = conf.get('AUTOCRUD_MAX_QUERY_LIMIT')
+            limit = max_limit
 
     return page, limit, invalid
 
