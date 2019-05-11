@@ -2,7 +2,6 @@ from flask import request
 from flask import current_app as cap
 from flask.views import MethodView
 
-from sqlalchemy import inspect
 from sqlalchemy.exc import ArgumentError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import contains_eager
@@ -46,7 +45,6 @@ class Service(MethodView):
 
             session.delete(resource)
             session.commit()
-
         return _delete()
 
     def patch(self, resource_id):
@@ -206,10 +204,10 @@ class Service(MethodView):
 
         invalid = []
         model = self._model
-        query = self._db.session.query(self._model)
+        query = self._db.session.query(model)
 
         data = request.get_json() or {}
-        fields = data.get('fields') or []
+        fields = data.get('fields') or list(model.columns().keys())
         joins = data.get('related') or {}
         filters = data.get('filters') or []
         sort = data.get('sorting') or []
@@ -221,7 +219,7 @@ class Service(MethodView):
         cap.logger.debug(query)
 
         for k in fields:
-            if k not in (model.required() + model.optional()):
+            if k not in model.columns().keys():
                 invalid.append(k)
 
         if len(invalid) == 0 and len(fields) > 0:
@@ -232,46 +230,47 @@ class Service(MethodView):
                 invalid.append(fields)
 
         for k in joins.keys():
-            instance = None
-            for r in inspect(model).relationships:
-                if "_".join(r.key.split('_')[:-1]) == k.lower():
-                    instance = getattr(model, r.key)
-
+            instance, columns = model.related(k)
             if instance is not None:
-                column = joins.get(k)
+                _columns = joins.get(k)
                 try:
-                    load_column = contains_eager(instance)
-                    if len(column) > 0 and column[0] != GRAMMAR.ALL:
-                        load_column = load_column.load_only(*column)
+                    if len(_columns) > 0 and _columns[0] != GRAMMAR.ALL:
+                        _invalid = list(set(joins.get(k)) - set(columns))
+                        if len(_invalid) > 0:
+                            _columns = _invalid
+                            raise ArgumentError
+                    else:
+                        _columns = columns
 
-                    query = query.join(instance, aliased=False).options(load_column)
+                    query = query.join(instance, aliased=False)
+                    query = query.options(contains_eager(instance).load_only(*_columns))
                     cap.logger.debug(query)
                 except ArgumentError:
-                    invalid += column
+                    invalid += _columns
             else:
                 invalid.append(k)
 
-        for f in filters:
+        def apply(stm, flt, action):
             try:
-                query = sqlaf.apply_filters(query, f)
+                _, cols = model.related(flt.get('model'))
+                if cols and cols.get(flt.get('field')) is None:
+                    raise exceptions.FieldNotFound
+
+                stm = action(stm, flt)
                 cap.logger.debug(query)
+                return stm
             except exceptions.BadSpec:
-                invalid.append(f.get('model'))
+                invalid.append(flt.get('model'))
             except exceptions.FieldNotFound:
-                invalid.append(f.get('field'))
+                invalid.append(flt.get('field'))
             except exceptions.BadFilterFormat:
-                invalid.append(f.get('op'))
+                invalid.append(flt.get('op'))
+
+        for f in filters:
+            query = apply(query, f, sqlaf.apply_filters)
 
         for s in sort:
-            try:
-                query = sqlaf.apply_sort(query, s)
-                cap.logger.debug(query)
-            except exceptions.BadSpec:
-                invalid.append(s.get('model'))
-            except exceptions.FieldNotFound:
-                invalid.append(s.get('field'))
-            except exceptions.BadSortFormat:
-                invalid.append(s.get('direction'))
+            query = apply(query, s, sqlaf.apply_sort)
 
         if len(invalid) > 0:
             return self._response.build_response(

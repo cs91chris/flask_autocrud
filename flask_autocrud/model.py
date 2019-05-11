@@ -15,6 +15,7 @@ class Model(object):
     __cols__ = None
     __url__ = None
     __table__ = None
+    __hidden__ = []
     __description__ = None
     __version__ = MODEL_VERSION
     __methods__ = ALLOWED_METHODS
@@ -35,13 +36,13 @@ class Model(object):
         cls.__cols__ = {}
 
         for i in cls.__dict__:
-            if not i.startswith('_'):
+            if not i.startswith('_') and i not in cls.__hidden__:
                 col = getattr(cls, i)
-                if isinstance(col, InstrumentedAttribute) and \
-                        not isinstance(col.comparator, RelationshipProperty.Comparator):
-                    cls.__cols__[i] = col
-                    if col.primary_key:
-                        cls.__pks__.append(i)
+                if isinstance(col, InstrumentedAttribute):
+                    if not isinstance(col.comparator, RelationshipProperty.Comparator):
+                        cls.__cols__[i] = col
+                        if col.primary_key:
+                            cls.__pks__.append(i)
 
     @classmethod
     def columns(cls):
@@ -100,29 +101,45 @@ class Model(object):
         return cls.__pks__[0]
 
     @classmethod
+    def related(cls, name):
+        """
+
+        :param name:
+        :return:
+        """
+        columns = None
+        instance = None
+
+        if name is not None:
+            for r in inspect(cls).relationships:
+                if "_".join(r.key.split('_')[:-1]) == name.lower():
+                    columns = r.argument.class_().columns()
+                    instance = getattr(cls, r.key)
+
+        return instance, columns
+
+    @classmethod
     def description(cls):
         """
 
         :return:
         """
-        description = {
+        return {
             'url': cls.__url__,
             'methods': list(cls.__methods__),
             'description': cls.__description__ or cls.__table__.comment,
-            'fields': []
+            'fields': [
+                {
+                    'name': col,
+                    'type': c.type.python_type.__name__,
+                    'primaryKey': c.primary_key,
+                    'autoincrement': c.autoincrement,
+                    'nullable': c.nullable,
+                    'unique': c.unique,
+                    'description': c.comment
+                } for col, c in cls.columns().items()
+            ]
         }
-
-        for col, c in cls.columns().items():
-            description['fields'].append({
-                'name': col,
-                'type': c.type.python_type.__name__,
-                'primaryKey': c.primary_key,
-                'autoincrement': c.autoincrement,
-                'nullable': c.nullable,
-                'unique': c.unique,
-                'description': c.comment
-            })
-        return description
 
     def to_dict(self, rel=False):
         """
