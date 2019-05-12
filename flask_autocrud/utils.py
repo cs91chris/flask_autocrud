@@ -2,34 +2,9 @@ from decimal import Decimal
 from datetime import datetime
 
 from .model import Model
-from .qs2sqla import Qs2Sqla
 
 from .config import HTTP_STATUS
 from .config import COLLECTION_SUFFIX
-
-
-def get_pagination_params(conf, args):
-    """
-
-    :param conf:
-    :param args:
-    :return:
-    """
-    invalid = []
-    page = valid_number(args.get(Qs2Sqla.arguments.scalar.page))
-    limit = valid_number(args.get(Qs2Sqla.arguments.scalar.limit))
-
-    invalid.append(Qs2Sqla.arguments.scalar.page) if page is False else None
-    invalid.append(Qs2Sqla.arguments.scalar.limit) if limit is False else None
-
-    max_limit = conf.get('AUTOCRUD_MAX_QUERY_LIMIT')
-    if max_limit > 0:
-        page = 1 if not page else page
-
-        if not limit or limit > max_limit:
-            limit = max_limit
-
-    return page, limit, invalid
 
 
 def from_model_to_dict(data):
@@ -65,22 +40,6 @@ def from_model_to_dict(data):
 
             resp.update({k: v})
     return resp
-
-
-def valid_number(num):
-    """
-
-    :param num:
-    :return:
-    """
-    if num is None:
-        return None
-
-    try:
-        num = int(num)
-        return num if num > 0 else False
-    except ValueError:
-        return False
 
 
 def validate_entity(model, data):

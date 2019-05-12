@@ -2,12 +2,9 @@ from flask import request
 from flask import current_app as cap
 from flask.views import MethodView
 
-from sqlalchemy.exc import ArgumentError
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import contains_eager
 
 import sqlalchemy_filters as sqlaf
-from sqlalchemy_filters import exceptions
 
 from flask_response_builder.dictutils import to_flatten
 
@@ -165,7 +162,7 @@ class Service(MethodView):
 
         fields = None
         statement = model.query
-        page, limit, error = util.get_pagination_params(cap.config, request.args)
+        page, limit, error = Qs2Sqla.validate_pagination(request.args, cap.config.get('AUTOCRUD_MAX_QUERY_LIMIT'))
         invalid += error
 
         if cap.config.get('AUTOCRUD_QUERY_STRING_FILTERS_ENABLED') is True:
@@ -204,77 +201,14 @@ class Service(MethodView):
 
         :return:
         """
+        invalid = []
         _, builder = self._response.get_mimetype_accept()
 
-        invalid = []
-        model = self._model
-        query = self._db.session.query(model)
-
-        data = request.get_json() or {}
-        fields = data.get('fields') or list(model.columns().keys())
-        joins = data.get('related') or {}
-        filters = data.get('filters') or []
-        sort = data.get('sorting') or []
-        pagination = data.get('pagination') or {}
-
-        page, limit, error = util.get_pagination_params(cap.config, pagination)
+        page, limit, error = Qs2Sqla.validate_pagination(request.args, cap.config.get('AUTOCRUD_MAX_QUERY_LIMIT'))
         invalid += error
 
-        cap.logger.debug(query)
-
-        for k in fields:
-            if k not in model.columns().keys():
-                invalid.append(k)
-
-        if len(invalid) == 0 and len(fields) > 0:
-            try:
-                query = sqlaf.apply_loads(query, fields)
-                cap.logger.debug(query)
-            except exceptions.BadLoadFormat:
-                invalid.append(fields)
-
-        for k in joins.keys():
-            instance, columns = model.related(k)
-            if instance is not None:
-                _columns = joins.get(k)
-                try:
-                    if len(_columns) > 0 and _columns[0] != Qs2Sqla.syntax.ALL:
-                        _invalid = list(set(joins.get(k)) - set(columns))
-                        if len(_invalid) > 0:
-                            _columns = _invalid
-                            raise ArgumentError
-                    else:
-                        _columns = columns
-
-                    query = query.join(instance, aliased=False)
-                    query = query.options(contains_eager(instance).load_only(*_columns))
-                    cap.logger.debug(query)
-                except ArgumentError:
-                    invalid += _columns
-            else:
-                invalid.append(k)
-
-        def apply(stm, flt, action):
-            try:
-                _, cols = model.related(flt.get('model'))
-                if cols and cols.get(flt.get('field')) is None:
-                    raise exceptions.FieldNotFound
-
-                stm = action(stm, flt)
-                cap.logger.debug(query)
-                return stm
-            except exceptions.BadSpec:
-                invalid.append(flt.get('model'))
-            except exceptions.FieldNotFound:
-                invalid.append(flt.get('field'))
-            except exceptions.BadFilterFormat:
-                invalid.append(flt.get('op'))
-
-        for f in filters:
-            query = apply(query, f, sqlaf.apply_filters)
-
-        for s in sort:
-            query = apply(query, s, sqlaf.apply_sort)
+        query, error = Qs2Sqla.dict2sqla(self._model, request.get_json() or {})
+        invalid += error
 
         if len(invalid) > 0:
             return self._response.build_response(
@@ -282,14 +216,12 @@ class Service(MethodView):
             )
 
         query, pagination = sqlaf.apply_pagination(query, page, limit)
-        cap.logger.debug(query)
-
-        response = []
         result = query.all()
 
         if Qs2Sqla.arguments.scalar.export in request.args:
             return self._export(result, page, limit, to_dict=util.from_model_to_dict)
 
+        response = []
         for r in result:
             if Qs2Sqla.arguments.scalar.as_table in request.args:
                 response += to_flatten(r, to_dict=util.from_model_to_dict)

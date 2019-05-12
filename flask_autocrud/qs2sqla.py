@@ -1,6 +1,12 @@
 from sqlalchemy import asc as sqla_asc
 from sqlalchemy import desc as sqla_desc
+
+from sqlalchemy.exc import ArgumentError
+from sqlalchemy.orm import contains_eager
 from sqlalchemy.sql.elements import or_
+
+import sqlalchemy_filters as sqlaf
+from sqlalchemy_filters import exceptions
 
 from .config import Parsed
 from .config import default_syntax
@@ -30,6 +36,39 @@ class Qs2Sqla:
         """
         esc = escape or cls.syntax.ESCAPE
         return i[len(esc):] if i.startswith(esc) else i
+
+    @classmethod
+    def validate_pagination(cls, conf, max_limit):
+        """
+
+        :param conf:
+        :param max_limit:
+        :return:
+        """
+        def valid_number(num):
+            if num is None:
+                return None
+
+            try:
+                num = int(num)
+                return num if num > 0 else False
+            except ValueError:
+                return False
+
+        invalid = []
+        page = valid_number(conf.get(cls.arguments.scalar.page))
+        limit = valid_number(conf.get(cls.arguments.scalar.limit))
+
+        invalid.append(cls.arguments.scalar.page) if page is False else None
+        invalid.append(cls.arguments.scalar.limit) if limit is False else None
+        invalid.append('AUTOCRUD_MAX_QUERY_LIMIT') if max_limit is False else None
+
+        if max_limit > 0:
+            page = 1 if not page else page
+            if not limit or limit > max_limit:
+                limit = max_limit
+
+        return page, limit, invalid
 
     @classmethod
     def get_filter(cls, f, v):
@@ -116,3 +155,64 @@ class Qs2Sqla:
             else:
                 parsed.invalids.append(k)
         return parsed
+
+    @classmethod
+    def dict2sqla(cls, model, data):
+        invalid = []
+        query = model.query
+        fields = data.get('fields') or list(model.columns().keys())
+        related = data.get('related') or {}
+        filters = data.get('filters') or []
+        sort = data.get('sorting') or []
+
+        for k in fields:
+            if k not in model.columns().keys():
+                invalid.append(k)
+
+        if len(invalid) == 0 and len(fields) > 0:
+            try:
+                query = sqlaf.apply_loads(query, fields)
+            except exceptions.BadLoadFormat:
+                invalid.append(fields)
+
+        for k in related.keys():
+            instance, columns = model.related(k)
+            if instance is not None:
+                _columns = related.get(k)
+                try:
+                    if len(_columns) > 0 and _columns[0] != cls.syntax.ALL:
+                        _invalid = list(set(related.get(k)) - set(columns))
+                        if len(_invalid) > 0:
+                            _columns = _invalid
+                            raise ArgumentError
+                    else:
+                        _columns = columns
+
+                    query = query.join(instance, aliased=False)
+                    query = query.options(contains_eager(instance).load_only(*_columns))
+                except ArgumentError:
+                    invalid += _columns
+            else:
+                invalid.append(k)
+
+        def apply(stm, flt, action):
+            try:
+                _, cols = model.related(flt.get('model'))
+                if cols and cols.get(flt.get('field')) is None:
+                    raise exceptions.FieldNotFound
+
+                return action(stm, flt)
+            except (AttributeError, exceptions.BadSpec):
+                invalid.append(flt.get('model'))
+            except exceptions.FieldNotFound:
+                invalid.append(flt.get('field'))
+            except exceptions.BadFilterFormat:
+                invalid.append(flt.get('op'))
+
+        for f in filters:
+            query = apply(query, f, sqlaf.apply_filters)
+
+        for s in sort:
+            query = apply(query, s, sqlaf.apply_sort)
+
+        return query, invalid

@@ -62,12 +62,12 @@ You can use entity fields as parameter with the following placeholders:
 
 Other parameters:
 
-    - Use ``fields`` parameter to get only the fields listes as value, separated by ``;``.
-    - Use ``limit`` and ``page`` parameters for pagination.
-    - Sorting is implemented with ``sort`` parameter. The value is a list of field separated by `;`
+    - Use ``_fields`` parameter to get only the fields listes as value, separated by ``;``.
+    - Use ``_limit`` and ``_page`` parameters for pagination.
+    - Sorting is implemented with ``_sort`` parameter. The value is a list of field separated by `;`
       You can prepend ``-`` to reverse order.
-    - Use ``export`` parameter to export data into csv format.
-    - Use ``extended`` in order to fetch data of related resources.
+    - Use ``_export`` parameter to export data into csv format.
+    - Use ``_extended`` in order to fetch data of related resources.
 
 Example requests:
 
@@ -89,7 +89,7 @@ Example FETCH:
                 "Address",
                 "City"
             ],
-            "joins": {
+            "related": {
                 "Employee": [
                     "FirstName",
                     "LastName"
@@ -112,7 +112,7 @@ Example FETCH:
                     "value": 6
                 }
             ],
-            "sortBy": [
+            "sorting": [
                 {
                     "model": "Invoice",
                     "field": "Total",
@@ -123,11 +123,7 @@ Example FETCH:
                     "field": "Address",
                     "direction": "desc"
                 }
-            ],
-            "pagination": {
-                "page": 1,
-                "limit": 5
-            }
+            ]
         }'
 
 .. _section-3:
