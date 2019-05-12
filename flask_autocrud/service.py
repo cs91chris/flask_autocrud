@@ -13,8 +13,6 @@ from flask_response_builder.dictutils import to_flatten
 
 from . import utils as util
 from .qs2sqla import Qs2Sqla
-from .config import Fields
-from .config import Grammar
 from .config import HTTP_STATUS
 
 
@@ -108,7 +106,7 @@ class Service(MethodView):
             except IntegrityError:
                 return {'message': 'Conflict'}, HTTP_STATUS.CONFLICT
 
-            return data, util.location_header(resource), HTTP_STATUS.CREATED
+            return resource.to_dict(), util.location_header(resource), HTTP_STATUS.CREATED
         return _post()
 
     def put(self, resource_id):
@@ -171,8 +169,7 @@ class Service(MethodView):
         invalid += error
 
         if cap.config.get('AUTOCRUD_QUERY_STRING_FILTERS_ENABLED') is True:
-            parser = Qs2Sqla(request.args)
-            parsed = parser.parse(model)
+            parsed = Qs2Sqla.parse(request.args, model)
             fields = parsed.fields
             invalid += parsed.invalids
             statement = model.query.filter(*parsed.filters).order_by(*parsed.orders)
@@ -186,7 +183,7 @@ class Service(MethodView):
         resources = statement.all()
 
         for r in resources:
-            item = r.to_dict(True if Fields.Static.extended in request.args else False)
+            item = r.to_dict(True if Qs2Sqla.arguments.scalar.extended in request.args else False)
             item_keys = item.keys()
 
             if fields:
@@ -195,7 +192,7 @@ class Service(MethodView):
 
             response.append(item)
 
-        if Fields.Static.export in request.args:
+        if Qs2Sqla.arguments.scalar.export in request.args:
             return self._export(response, page, limit)
 
         return self._response.build_response(
@@ -241,7 +238,7 @@ class Service(MethodView):
             if instance is not None:
                 _columns = joins.get(k)
                 try:
-                    if len(_columns) > 0 and _columns[0] != Grammar.ALL:
+                    if len(_columns) > 0 and _columns[0] != Qs2Sqla.syntax.ALL:
                         _invalid = list(set(joins.get(k)) - set(columns))
                         if len(_invalid) > 0:
                             _columns = _invalid
@@ -290,11 +287,11 @@ class Service(MethodView):
         response = []
         result = query.all()
 
-        if Fields.Static.export in request.args:
+        if Qs2Sqla.arguments.scalar.export in request.args:
             return self._export(result, page, limit, to_dict=util.from_model_to_dict)
 
         for r in result:
-            if Fields.Static.as_table in request.args:
+            if Qs2Sqla.arguments.scalar.as_table in request.args:
                 response += to_flatten(r, to_dict=util.from_model_to_dict)
             else:
                 response.append(util.from_model_to_dict(r))
@@ -311,7 +308,7 @@ class Service(MethodView):
         :param limit:
         :return:
         """
-        filename = request.args.get(Fields.Static.export) or "{}{}{}".format(
+        filename = request.args.get(Qs2Sqla.arguments.scalar.export) or "{}{}{}".format(
             self._model.__name__,
             "_{}".format(page) if page else "",
             "_{}".format(limit) if limit else ""

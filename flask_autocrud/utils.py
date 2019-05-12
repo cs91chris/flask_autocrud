@@ -2,8 +2,8 @@ from decimal import Decimal
 from datetime import datetime
 
 from .model import Model
+from .qs2sqla import Qs2Sqla
 
-from .config import Fields
 from .config import HTTP_STATUS
 from .config import COLLECTION_SUFFIX
 
@@ -16,11 +16,11 @@ def get_pagination_params(conf, args):
     :return:
     """
     invalid = []
-    page = valid_number(args.get(Fields.Static.page))
-    limit = valid_number(args.get(Fields.Static.limit))
+    page = valid_number(args.get(Qs2Sqla.arguments.scalar.page))
+    limit = valid_number(args.get(Qs2Sqla.arguments.scalar.limit))
 
-    invalid.append(Fields.Static.page) if page is False else None
-    invalid.append(Fields.Static.limit) if limit is False else None
+    invalid.append(Qs2Sqla.arguments.scalar.page) if page is False else None
+    invalid.append(Qs2Sqla.arguments.scalar.limit) if limit is False else None
 
     max_limit = conf.get('AUTOCRUD_MAX_QUERY_LIMIT')
     if max_limit > 0:

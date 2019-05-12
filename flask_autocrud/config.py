@@ -1,34 +1,4 @@
-class Grammar:
-    ESCAPE = '\\'
-    ALL = '*'
-    SEP = ';'
-    NOT = '!'
-    LIKE = '%'
-    REVERSE = '-'
-    LT = '__lt__'
-    GT = '__gt__'
-    LTE = '__lte__'
-    GTE = '__gte__'
-    NULL = 'null'
-    RNS = '('
-    RNE = ')'
-    NOT_RNS = NOT + RNS
-    NOT_RNE = RNE
-    NOT_NULL = NOT + NULL
-    NOT_LIKE = NOT + LIKE
-
-
-class Fields:
-    class Static:
-        page = '_page'
-        limit = '_limit'
-        export = '_export'
-        extended = '_extended'
-        as_table = '_as_table'
-
-    class Dynamic:
-        sort = '_sort'
-        fields = '_fields'
+from collections import namedtuple
 
 
 class HTTP_STATUS:
@@ -73,3 +43,94 @@ def set_default_config(app):
     app.config.setdefault('AUTOCRUD_MAX_QUERY_LIMIT', 1000)
     app.config.setdefault('AUTOCRUD_FETCH_ENABLED', True)
     app.config.setdefault('AUTOCRUD_QUERY_STRING_FILTERS_ENABLED', True)
+
+
+Parsed = namedtuple(
+    'Parsed',
+    (
+        'fields',
+        'filters',
+        'orders',
+        'invalids',
+    )
+)
+
+Syntax = namedtuple(
+    'Syntax',
+    (
+        'ESCAPE',
+        'ALL',
+        'SEP',
+        'NOT',
+        'LIKE',
+        'REVERSE',
+        'LT',
+        'GT',
+        'LTE',
+        'GTE',
+        'NULL',
+        'RNS',
+        'RNE',
+        'NOT_RNS',
+        'NOT_RNE',
+        'NOT_NULL',
+        'NOT_LIKE',
+    )
+)
+
+scalarFields = namedtuple(
+    'scalarFields',
+    (
+        'page',
+        'limit',
+        'export',
+        'extended',
+        'as_table',
+    )
+)
+
+vectorFields = namedtuple(
+    'vector',
+    (
+        'sort',
+        'fields',
+    )
+)
+
+
+class Fields:
+    scalar = scalarFields(
+        page='_page',
+        limit='_limit',
+        export='_export',
+        extended='_extended',
+        as_table='_as_table',
+    )
+
+    vector = vectorFields(
+        sort='_sort',
+        fields='_fields',
+    )
+
+
+default_syntax = Syntax(
+    ESCAPE='\\',
+    ALL='*',
+    SEP=';',
+    NOT='!',
+    REVERSE='-',
+    LIKE='%',
+    NOT_LIKE='!%',
+    LT='__lt__',
+    GT='__gt__',
+    LTE='__lte__',
+    GTE='__gte__',
+    NULL='null',
+    NOT_NULL='!null',
+    RNS='(',
+    RNE=')',
+    NOT_RNS='!(',
+    NOT_RNE=')',
+)
+
+default_arguments = Fields

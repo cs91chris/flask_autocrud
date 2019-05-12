@@ -1,123 +1,117 @@
-from collections import namedtuple
-
 from sqlalchemy import asc as sqla_asc
 from sqlalchemy import desc as sqla_desc
 from sqlalchemy.sql.elements import or_
-from sqlalchemy.sql.elements import between
 
-from .config import Fields
-from .config import Grammar
+from .config import Parsed
+from .config import default_syntax
+from .config import default_arguments
 
 
 class Qs2Sqla:
-    Parsed = namedtuple('Parsed', 'fields filters orders invalids')
+    syntax = default_syntax
+    arguments = default_arguments
 
-    def __init__(self, args, grammar=None, fields=None):
-        """
-
-        :param args:
-        :param grammar:
-        :param fields:
-        """
-        self._args = args
-        self._fields = fields or Fields
-        self._grammar = grammar or Grammar
-
-    def clear_empty(self, l):
+    @classmethod
+    def clear_empty(cls, l):
         """
 
         :param l:
         :return:
         """
-        return [i for i in l.split(self._grammar.SEP) if i != ""]
+        return [i for i in l.split(cls.syntax.SEP) if i != ""]
 
-    def clear_escape(self, i, escape=None):
+    @classmethod
+    def clear_escape(cls, i, escape=None):
         """
 
         :param i:
         :param escape:
         :return:
         """
-        esc = escape or self._grammar.ESCAPE
+        esc = escape or cls.syntax.ESCAPE
         return i[len(esc):] if i.startswith(esc) else i
 
-    def get_filter(self, f, v):
+    @classmethod
+    def get_filter(cls, f, v):
         """
 
         :param f:
         :param v:
         :return:
         """
-        if v.startswith(self._grammar.GT):
-            return f > self.clear_escape(v, escape=self._grammar.GT)
-        if v.startswith(self._grammar.LT):
-            return f < self.clear_escape(v, escape=self._grammar.LT)
-        if v.startswith(self._grammar.GTE):
-            return f >= self.clear_escape(v, escape=self._grammar.GTE)
-        if v.startswith(self._grammar.LTE):
-            return f <= self.clear_escape(v, escape=self._grammar.LTE)
+        if v.startswith(cls.syntax.GT):
+            return f > cls.clear_escape(v, escape=cls.syntax.GT)
+        if v.startswith(cls.syntax.LT):
+            return f < cls.clear_escape(v, escape=cls.syntax.LT)
+        if v.startswith(cls.syntax.GTE):
+            return f >= cls.clear_escape(v, escape=cls.syntax.GTE)
+        if v.startswith(cls.syntax.LTE):
+            return f <= cls.clear_escape(v, escape=cls.syntax.LTE)
 
-        if v.startswith(self._grammar.NOT_LIKE):
+        if v.startswith(cls.syntax.NOT_LIKE):
             return f.notilike(
-                self.clear_escape(v, escape=self._grammar.NOT_LIKE),
-                escape=self._grammar.ESCAPE
+                cls.clear_escape(v, escape=cls.syntax.NOT_LIKE),
+                escape=cls.syntax.ESCAPE
             )
-        if v.startswith(self._grammar.LIKE):
+        if v.startswith(cls.syntax.LIKE):
             return f.ilike(
-                self.clear_escape(v, escape=self._grammar.LIKE),
-                escape=self._grammar.ESCAPE
+                cls.clear_escape(v, escape=cls.syntax.LIKE),
+                escape=cls.syntax.ESCAPE
             )
 
-        if v.startswith(self._grammar.RNS) and v.endswith(self._grammar.RNE):
-            return between(
-                f, *v[len(self._grammar.RNS):-len(self._grammar.RNE)].split(self._grammar.SEP, 1)
+        if v.startswith(cls.syntax.RNS) and v.endswith(cls.syntax.RNE):
+            return f.between(
+                *v[len(cls.syntax.RNS):-len(cls.syntax.RNE)].split(cls.syntax.SEP, 1)
             )
-        if v.startswith(self._grammar.NOT_RNS) and v.endswith(self._grammar.NOT_RNE):
-            return ~between(
-                f, *v[len(self._grammar.NOT_RNS):-len(self._grammar.NOT_RNE)].split(self._grammar.SEP, 1)
+        if v.startswith(cls.syntax.NOT_RNS) and v.endswith(cls.syntax.NOT_RNE):
+            return ~f.between(
+                *v[len(cls.syntax.NOT_RNS):-len(cls.syntax.NOT_RNE)].split(cls.syntax.SEP, 1)
             )
 
-        item = self.clear_empty(v)
-        if item[0].startswith(self._grammar.NOT):
-            item[0] = self.clear_escape(item[0], escape=self._grammar.NOT)
+        item = cls.clear_empty(v)
+        if item[0].startswith(cls.syntax.NOT):
+            item[0] = cls.clear_escape(item[0], escape=cls.syntax.NOT)
             return f.notin_(item)
         else:
-            item[0] = self.clear_escape(item[0])
+            item[0] = cls.clear_escape(item[0])
             return f.in_(item)
 
-    def parse(self, model):
+    @classmethod
+    def parse(cls, args, model):
         """
 
+        :param args:
         :param model:
         :return:
         """
         # noinspection PyCallByClass
-        parsed = Qs2Sqla.Parsed(fields=[], filters=[], orders=[], invalids=[])
+        parsed = Parsed(fields=[], filters=[], orders=[], invalids=[])
 
-        for k, v in self._args.items():
-            if k in self._fields.Static.__dict__.values():
+        for k, v in args.items():
+            if k in cls.arguments.scalar:
                 continue
 
-            if k == self._fields.Dynamic.sort:
-                for item in self.clear_empty(v):
-                    if item not in model.columns().keys():
-                        parsed.invalids.append(item)
-                    else:
-                        direction = sqla_desc if item.startswith(self._grammar.REVERSE) else sqla_asc
-                        item = self.clear_escape(item, escape=self._grammar.REVERSE)
-                        parsed.orders.append(direction(model.columns().get(item)))
+            if k == cls.arguments.vector.sort:
+                for item in cls.clear_empty(v):
+                    direction = sqla_desc if item.startswith(cls.syntax.REVERSE) else sqla_asc
+                    item = cls.clear_escape(item, escape=cls.syntax.REVERSE)
 
-            elif k == self._fields.Dynamic.fields:
-                for item in self.clear_empty(v):
-                    if item not in model.columns().keys():
-                        parsed.invalids.append(item)
+                    if item in model.columns().keys():
+                        parsed.orders.append(direction(model.columns().get(item)))
                     else:
+                        parsed.invalids.append(item)
+
+            elif k == cls.arguments.vector.fields:
+                for item in cls.clear_empty(v):
+                    if item in model.columns().keys():
                         parsed.fields.append(item)
+                    else:
+                        parsed.invalids.append(item)
 
             elif k in model.columns().keys():
                 f = model.columns().get(k)
                 parsed.filters.append(
-                    or_(*[self.get_filter(f, item) for item in self._args.getlist(k)])
+                    or_(*[cls.get_filter(f, item) for item in args.getlist(k)])
                 )
             else:
                 parsed.invalids.append(k)
