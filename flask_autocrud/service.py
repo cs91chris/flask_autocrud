@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from flask_response_builder.dictutils import to_flatten
 
 from .qs2sqla import Qs2Sqla
-import flask_autocrud.utils as util
+from .config import HttpStatus as status
 
 
 class Service(MethodView):
@@ -34,7 +34,7 @@ class Service(MethodView):
                 return (
                     {'message': 'Not Found'},
                     {'Content-Type': mime_type},
-                    util.status.NOT_FOUND
+                    status.NOT_FOUND
                 )
 
             session.delete(resource)
@@ -47,7 +47,6 @@ class Service(MethodView):
         :param resource_id:
         :return:
         """
-
         @self._response.on_accept()
         def _patch():
             model = self._model
@@ -56,18 +55,14 @@ class Service(MethodView):
             _, unknown = model.validate(data)
 
             if unknown:
-                return dict(unknown=unknown), util.status.UNPROCESSABLE_ENTITY
+                return dict(unknown=unknown), status.UNPROCESSABLE_ENTITY
 
             resource = model.query.get(resource_id)
             if not resource:
-                return dict(message='Not Found'), util.status.NOT_FOUND
+                return dict(message='Not Found'), status.NOT_FOUND
 
-            session.merge(resource)
-            resource.update(data)
-            session.flush()
-            res = resource.to_dict()
-            session.commit()
-            return res, util.links_header(resource)
+            res = self._merge_resource(session, resource, data)
+            return res, self._link_header(resource)
         return _patch()
 
     def post(self):
@@ -82,14 +77,14 @@ class Service(MethodView):
             data = request.get_json()
 
             if not data:
-                return dict(message='Bad Request'), util.status.BAD_REQUEST
+                return dict(message='Bad Request'), status.BAD_REQUEST
 
             missing, unknown = model.validate(data)
             if unknown or missing:
                 return {
                     'unknown': unknown or [],
                     'missing': missing or []
-                }, util.status.UNPROCESSABLE_ENTITY
+                }, status.UNPROCESSABLE_ENTITY
 
             resource = model.query.filter_by(**data).first()
 
@@ -98,13 +93,11 @@ class Service(MethodView):
                     raise IntegrityError(statement=None, params=None, orig=None)
 
                 resource = model(**data)
-                session.add(resource)
-                session.flush()
-                res = resource.to_dict()
-                session.commit()
+                res = self._add_resource(session, resource)
             except IntegrityError:
-                return dict(message='Conflict'), util.status.CONFLICT
-            return res, util.location_header(resource), util.status.CREATED
+                session.rollback()
+                return dict(message='Conflict'), status.CONFLICT
+            return res, self._location_header(resource), status.CREATED
         return _post()
 
     def put(self, resource_id):
@@ -121,24 +114,16 @@ class Service(MethodView):
             _, unknown = model.validate(data)
 
             if unknown:
-                return dict(unknown=unknown), util.status.UNPROCESSABLE_ENTITY
+                return dict(unknown=unknown), status.UNPROCESSABLE_ENTITY
 
             resource = model.query.get(resource_id)
             if resource:
-                session.merge(resource)
-                resource.update(data)
-                session.flush()
-                res = resource.to_dict()
-                session.commit()
-                return res, util.links_header(resource)
+                res = self._merge_resource(session, resource, data)
+                return res, self._link_header(resource)
 
             resource = model(**data)
-            session.add(resource)
-            session.flush()
-            res = resource.to_dict()
-            session.commit()
-
-            return res, util.location_header(resource), util.status.CREATED
+            res = self._add_resource(session, resource)
+            return res, self._location_header(resource), status.CREATED
         return _put()
 
     def get(self, resource_id=None):
@@ -154,10 +139,10 @@ class Service(MethodView):
             r = model.query.get(resource_id)
             if not r:
                 return self._response.build_response(
-                    builder, (dict(message='Not Found'), util.status.NOT_FOUND)
+                    builder, (dict(message='Not Found'), status.NOT_FOUND)
                 )
             return self._response.build_response(
-                builder, (r.to_dict(), util.links_header(r))
+                builder, (r.to_dict(), self._link_header(r))
             )
 
         if request.path.endswith(cap.config.get('AUTOCRUD_METADATA_URL')):
@@ -198,7 +183,7 @@ class Service(MethodView):
 
         if len(invalid) > 0:
             return self._response.build_response(
-                builder, (dict(invalid=invalid), util.status.BAD_REQUEST)
+                builder, (dict(invalid=invalid), status.BAD_REQUEST)
             )
 
         query, pagination = sqlaf.apply_pagination(query, page, limit)
@@ -221,5 +206,88 @@ class Service(MethodView):
                 return self._response.csv(response, filename=filename)
 
         return self._response.build_response(
-            builder, (response, *util.pagination_headers(pagination))
+            builder, (response, *self._pagination_headers(pagination))
         )
+
+    @staticmethod
+    def _add_resource(session, resource):
+        """
+
+        :param session:
+        :param resource:
+        :return:
+        """
+        session.add(resource)
+        session.flush()
+        res = resource.to_dict()
+        session.commit()
+        return res
+
+    @staticmethod
+    def _merge_resource(session, resource, data):
+        """
+
+        :param session:
+        :param resource:
+        :param data:
+        :return:
+        """
+        session.merge(resource)
+        resource.update(data)
+        session.flush()
+        res = resource.to_dict()
+        session.commit()
+        return res
+
+    @staticmethod
+    def _link_header(resource):
+        """
+
+        :param resource:
+        :return:
+        """
+        links = resource.links()
+        link_string = '<{}>; rel=self'.format(links['self'])
+
+        for k, l in links.items():
+            if k != 'self':
+                link_string += ', <{}>; rel=related'.format(l)
+
+        return {'Link': link_string}
+
+    @staticmethod
+    def _location_header(resource):
+        """
+
+        :param resource:
+        :return:
+        """
+        location = resource.links()
+        return {'Location': location['self']}
+
+    @staticmethod
+    def _pagination_headers(pagination):
+        """
+
+        :param pagination:
+        :return:
+        """
+        code = status.SUCCESS
+
+        total_results = pagination.total_results
+        page_number = pagination.page_number
+        num_pages = pagination.num_pages
+        page_size = pagination.page_size
+
+        if num_pages > 1 and total_results > page_size:
+            code = status.PARTIAL_CONTENT
+
+        if page_number == num_pages:
+            code = status.SUCCESS
+
+        return {
+            'Pagination-Count': total_results,
+            'Pagination-Page': page_number,
+            'Pagination-Num-Pages': num_pages,
+            'Pagination-Limit': page_size
+        }, code

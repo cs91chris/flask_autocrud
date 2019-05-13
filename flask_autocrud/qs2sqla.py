@@ -51,12 +51,16 @@ class Qs2Sqla:
                 return False
 
         invalid = []
+        max_limit = valid_number(max_limit)
         page = valid_number(conf.get(cls.arguments.scalar.page))
         limit = valid_number(conf.get(cls.arguments.scalar.limit))
 
-        invalid.append(cls.arguments.scalar.page) if page is False else None
-        invalid.append(cls.arguments.scalar.limit) if limit is False else None
-        invalid.append('AUTOCRUD_MAX_QUERY_LIMIT') if max_limit is False else None
+        if page is False:
+            invalid.append(cls.arguments.scalar.page)
+        if limit is False:
+            invalid.append(cls.arguments.scalar.limit)
+        if max_limit is False:
+            invalid.append('invalid max_limit: {}'.format(max_limit))
 
         if max_limit > 0:
             page = 1 if not page else page
@@ -213,6 +217,8 @@ class Qs2Sqla:
                 invalid.append(flt.get('field'))
             except exceptions.BadFilterFormat:
                 invalid.append(flt.get('op'))
+            except exceptions.BadSortFormat:
+                invalid.append(flt.get('direction'))
 
         for f in filters:
             try:
