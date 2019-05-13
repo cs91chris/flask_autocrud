@@ -141,5 +141,6 @@ Configuration
 8.  ``AUTOCRUD_MAX_QUERY_LIMIT``: *(default 1000)* max query limit, 0 means no limit
 9.  ``AUTOCRUD_FETCH_ENABLED``: *(default True)* enable or disable FETCH method
 10. ``AUTOCRUD_QUERY_STRING_FILTERS_ENABLED``: *(default True)* enable or disable filters in querystring
+11. ``AUTOCRUD_EXPORT_ENABLED``: *(default True)* enable or disable export to csv
 
 License MIT

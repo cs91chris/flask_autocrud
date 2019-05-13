@@ -39,6 +39,7 @@ def set_default_config(app):
     app.config.setdefault('AUTOCRUD_RESOURCES_URL_ENABLED', True)
     app.config.setdefault('AUTOCRUD_MAX_QUERY_LIMIT', 1000)
     app.config.setdefault('AUTOCRUD_FETCH_ENABLED', True)
+    app.config.setdefault('AUTOCRUD_EXPORT_ENABLED', True)
     app.config.setdefault('AUTOCRUD_QUERY_STRING_FILTERS_ENABLED', True)
 
 

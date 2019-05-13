@@ -211,13 +211,14 @@ class Service(MethodView):
             else:
                 response.append(r.to_dict())
 
-        if Qs2Sqla.arguments.scalar.export in request.args:
-            filename = request.args.get(Qs2Sqla.arguments.scalar.export) or "{}{}{}".format(
-                self._model.__name__,
-                "_{}".format(page) if page else "",
-                "_{}".format(limit) if limit else ""
-            )
-            return self._response.csv(response, filename=filename)
+        if cap.config.get('AUTOCRUD_EXPORT_ENABLED') is True:
+            if Qs2Sqla.arguments.scalar.export in request.args:
+                filename = request.args.get(Qs2Sqla.arguments.scalar.export) or "{}{}{}".format(
+                    self._model.__name__,
+                    "_{}".format(page) if page else "",
+                    "_{}".format(limit) if limit else ""
+                )
+                return self._response.csv(response, filename=filename)
 
         return self._response.build_response(
             builder, (response, *util.pagination_headers(pagination))
