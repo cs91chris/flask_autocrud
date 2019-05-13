@@ -1,24 +1,26 @@
-import datetime
-
 from decimal import Decimal
+from datetime import datetime
 
 from sqlalchemy.inspection import inspect
+from sqlalchemy.orm.mapper import Mapper
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.relationships import RelationshipProperty
 
 from .config import ALLOWED_METHODS
-from .config import MODEL_VERSION
 
 
 class Model(object):
     __pks__ = None
     __cols__ = None
+    __rels__ = None
     __url__ = None
     __table__ = None
     __hidden__ = []
     __description__ = None
-    __version__ = MODEL_VERSION
+    __version__ = '1'
     __methods__ = ALLOWED_METHODS
+
+    collection_suffix = 'List'
 
     def __str__(self):
         """
@@ -35,7 +37,7 @@ class Model(object):
         cls.__pks__ = []
         cls.__cols__ = {}
 
-        for i in cls.__dict__:
+        for i in cls.__dict__:  # TODO find a best solution
             if not i.startswith('_') and i not in cls.__hidden__:
                 col = getattr(cls, i)
                 if isinstance(col, InstrumentedAttribute):
@@ -43,6 +45,25 @@ class Model(object):
                         cls.__cols__[i] = col
                         if col.primary_key:
                             cls.__pks__.append(i)
+
+    @classmethod
+    def _load_related(cls):
+        """
+
+        :return:
+        """
+        cls.__rels__ = {}
+
+        for r in inspect(cls).relationships:
+            if isinstance(r.argument, Mapper):
+                key = "_".join(r.key.split("_")[:-1])
+                columns = r.argument.class_().columns()
+            else:
+                key = r.key
+                columns = r.argument.columns()
+
+            instance = getattr(cls, r.key)
+            cls.__rels__.update({key: dict(instance=instance, columns=columns)})
 
     @classmethod
     def columns(cls):
@@ -107,16 +128,30 @@ class Model(object):
         :param name:
         :return:
         """
-        columns = None
-        instance = None
+        if not cls.__rels__:
+            cls._load_related()
 
-        if name is not None:
-            for r in inspect(cls).relationships:
-                if "_".join(r.key.split('_')[:-1]) == name.lower():
-                    columns = r.argument.class_().columns()
-                    instance = getattr(cls, r.key)
+        if not name:
+            return None, None
 
-        return instance, columns
+        rel = {}
+        for k in cls.__rels__.keys():
+            if k.lower() == name.lower():
+                rel = cls.__rels__.get(k)
+
+        return rel.get('instance'), rel.get('columns')
+
+    @classmethod
+    def validate(cls, data):
+        """
+
+        :param data:
+        """
+        fields = cls.required() + cls.optional()
+        unknown = [k for k in data if k not in fields]
+        missing = list(set(cls.required()) - set(data.keys()))
+
+        return missing if len(missing) else None, unknown if len(unknown) else None
 
     @classmethod
     def description(cls):
@@ -141,33 +176,38 @@ class Model(object):
             ]
         }
 
-    def to_dict(self, rel=False):
+    def to_dict(self):
         """
 
-        :param rel:
         :return:
         """
-        result = {}
-        for col in self.columns().keys():
-            value = result[col] = getattr(self, col)
+        resp = {}
+        data = self if isinstance(self, dict) else self.__dict__
 
-            if isinstance(value, Decimal):
-                result[col] = float(value)
-            elif isinstance(value, datetime.datetime):
-                result[col] = value.isoformat()
+        for k, v in data.items():
+            if k.startswith('_'):
+                continue
 
-        if rel is True:
-            for r in inspect(self.__class__).relationships:
-                _rel = getattr(self, r.key)
-                if isinstance(_rel, Model) or _rel is None:
-                    result.update({
-                        r.key: _rel.to_dict() if _rel else r.argument().to_dict()
+            if isinstance(v, Model):
+                resp.update({
+                    v.__class__.__name__: v.to_dict()
+                })
+            elif isinstance(v, list):
+                if len(v) > 0:
+                    name = v[0].__class__.__name__ + self.collection_suffix
+                    resp.update({
+                        name: [i.to_dict() for i in v]
                     })
+            else:
+                if isinstance(v, Decimal):
+                    v = float(v)
+                elif isinstance(v, datetime):
+                    v = v.isoformat()
 
-                    for i in r.local_columns:
-                        result.pop(i.name)
+                resp.update({k: v})
 
-        return result
+        resp['_links'] = self.links()
+        return resp
 
     def links(self):
         """
@@ -197,5 +237,6 @@ class Model(object):
         :return:
         """
         for attr, val in attributes.items():
-            setattr(self, attr, val)
+            if attr in self.columns().keys():
+                setattr(self, attr, val)
         return self

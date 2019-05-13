@@ -2,15 +2,13 @@ from flask import request
 from flask import current_app as cap
 from flask.views import MethodView
 
-from sqlalchemy.exc import IntegrityError
-
 import sqlalchemy_filters as sqlaf
+from sqlalchemy.exc import IntegrityError
 
 from flask_response_builder.dictutils import to_flatten
 
-from . import utils as util
 from .qs2sqla import Qs2Sqla
-from .config import HTTP_STATUS
+import flask_autocrud.utils as util
 
 
 class Service(MethodView):
@@ -36,7 +34,7 @@ class Service(MethodView):
                 return (
                     {'message': 'Not Found'},
                     {'Content-Type': mime_type},
-                    HTTP_STATUS.NOT_FOUND
+                    util.status.NOT_FOUND
                 )
 
             session.delete(resource)
@@ -55,19 +53,21 @@ class Service(MethodView):
             model = self._model
             session = self._db.session()
             data = request.get_json() or {}
-            _, unknown = util.validate_entity(model, data)
+            _, unknown = model.validate(data)
 
             if unknown:
-                return {'unknown': unknown}, HTTP_STATUS.UNPROCESSABLE_ENTITY
+                return dict(unknown=unknown), util.status.UNPROCESSABLE_ENTITY
 
             resource = model.query.get(resource_id)
             if not resource:
-                return {'message': 'Not Found'}, HTTP_STATUS.NOT_FOUND
+                return dict(message='Not Found'), util.status.NOT_FOUND
 
-            resource.update(data)
             session.merge(resource)
+            resource.update(data)
+            session.flush()
+            res = resource.to_dict()
             session.commit()
-            return resource.to_dict(), util.links_header(resource)
+            return res, util.links_header(resource)
         return _patch()
 
     def post(self):
@@ -82,14 +82,14 @@ class Service(MethodView):
             data = request.get_json()
 
             if not data:
-                return {'message': 'Not Found'}, HTTP_STATUS.BAD_REQUEST
+                return dict(message='Bad Request'), util.status.BAD_REQUEST
 
-            missing, unknown = util.validate_entity(model, data)
+            missing, unknown = model.validate(data)
             if unknown or missing:
                 return {
                     'unknown': unknown or [],
                     'missing': missing or []
-                }, HTTP_STATUS.UNPROCESSABLE_ENTITY
+                }, util.status.UNPROCESSABLE_ENTITY
 
             resource = model.query.filter_by(**data).first()
 
@@ -99,11 +99,12 @@ class Service(MethodView):
 
                 resource = model(**data)
                 session.add(resource)
+                session.flush()
+                res = resource.to_dict()
                 session.commit()
             except IntegrityError:
-                return {'message': 'Conflict'}, HTTP_STATUS.CONFLICT
-
-            return resource.to_dict(), util.location_header(resource), HTTP_STATUS.CREATED
+                return dict(message='Conflict'), util.status.CONFLICT
+            return res, util.location_header(resource), util.status.CREATED
         return _post()
 
     def put(self, resource_id):
@@ -117,23 +118,27 @@ class Service(MethodView):
             model = self._model
             session = self._db.session()
             data = request.get_json() or {}
-            _, unknown = util.validate_entity(model, data)
+            _, unknown = model.validate(data)
 
             if unknown:
-                return {'unknown': unknown}, HTTP_STATUS.UNPROCESSABLE_ENTITY
+                return dict(unknown=unknown), util.status.UNPROCESSABLE_ENTITY
 
             resource = model.query.get(resource_id)
             if resource:
-                resource.update(data)
                 session.merge(resource)
+                resource.update(data)
+                session.flush()
+                res = resource.to_dict()
                 session.commit()
-                return resource.to_dict(), util.links_header(resource)
+                return res, util.links_header(resource)
 
             resource = model(**data)
             session.add(resource)
+            session.flush()
+            res = resource.to_dict()
             session.commit()
 
-            return data, util.location_header(resource), HTTP_STATUS.CREATED
+            return res, util.location_header(resource), util.status.CREATED
         return _put()
 
     def get(self, resource_id=None):
@@ -142,107 +147,78 @@ class Service(MethodView):
         :param resource_id:
         :return:
         """
-        invalid = []
-        response = []
         model = self._model
         _, builder = self._response.get_mimetype_accept()
 
         if resource_id is not None:
-            resource = model.query.get(resource_id)
-            if not resource:
+            r = model.query.get(resource_id)
+            if not r:
                 return self._response.build_response(
-                    builder, ({'message': 'Not Found'}, HTTP_STATUS.NOT_FOUND)
+                    builder, (dict(message='Not Found'), util.status.NOT_FOUND)
                 )
             return self._response.build_response(
-                builder, (resource.to_dict(), util.links_header(resource))
+                builder, (r.to_dict(), util.links_header(r))
             )
 
         if request.path.endswith(cap.config.get('AUTOCRUD_METADATA_URL')):
             return self._response.build_response(builder, model.description())
 
-        fields = None
-        statement = model.query
-        page, limit, error = Qs2Sqla.validate_pagination(request.args, cap.config.get('AUTOCRUD_MAX_QUERY_LIMIT'))
-        invalid += error
-
         if cap.config.get('AUTOCRUD_QUERY_STRING_FILTERS_ENABLED') is True:
-            parsed = Qs2Sqla.parse(request.args, model)
-            fields = parsed.fields
-            invalid += parsed.invalids
-            statement = model.query.filter(*parsed.filters).order_by(*parsed.orders)
+            data, error = Qs2Sqla.parse(request.args, model)
+        else:
+            data, error = {}, []
 
-        if len(invalid) > 0:
-            return self._response.build_response(
-                builder, ({'invalid': invalid}, HTTP_STATUS.BAD_REQUEST)
-            )
-
-        statement, pagination = sqlaf.apply_pagination(statement, page, limit)
-        resources = statement.all()
-
-        for r in resources:
-            item = r.to_dict(True if Qs2Sqla.arguments.scalar.extended in request.args else False)
-            item_keys = item.keys()
-
-            if fields:
-                for k in set(item_keys) - set(fields):
-                    item.pop(k)
-
-            response.append(item)
-
-        if Qs2Sqla.arguments.scalar.export in request.args:
-            return self._export(response, page, limit)
-
-        return self._response.build_response(
-            builder, (response, *util.pagination_headers(pagination))
-        )
+        return self._build_response_list(builder, data, error)
 
     def fetch(self):
         """
 
         :return:
         """
-        invalid = []
         _, builder = self._response.get_mimetype_accept()
+        data = request.get_json() or {}
+        return self._build_response_list(builder, data)
 
-        page, limit, error = Qs2Sqla.validate_pagination(request.args, cap.config.get('AUTOCRUD_MAX_QUERY_LIMIT'))
+    def _build_response_list(self, builder, data, error=None):
+        """
+
+        :param builder:
+        :param data:
+        :param error:
+        :return:
+        """
+        model = self._model
+        invalid = error or []
+
+        page, limit, error = Qs2Sqla.get_pagination(request.args, cap.config.get('AUTOCRUD_MAX_QUERY_LIMIT'))
         invalid += error
 
-        query, error = Qs2Sqla.dict2sqla(self._model, request.get_json() or {})
+        query, error = Qs2Sqla.dict2sqla(model, data)
         invalid += error
 
         if len(invalid) > 0:
             return self._response.build_response(
-                builder, ({'invalid': invalid}, HTTP_STATUS.BAD_REQUEST)
+                builder, (dict(invalid=invalid), util.status.BAD_REQUEST)
             )
 
         query, pagination = sqlaf.apply_pagination(query, page, limit)
         result = query.all()
 
-        if Qs2Sqla.arguments.scalar.export in request.args:
-            return self._export(result, page, limit, to_dict=util.from_model_to_dict)
-
         response = []
         for r in result:
             if Qs2Sqla.arguments.scalar.as_table in request.args:
-                response += to_flatten(r, to_dict=util.from_model_to_dict)
+                response += to_flatten(r, to_dict=model.to_dict)
             else:
-                response.append(util.from_model_to_dict(r))
+                response.append(r.to_dict())
+
+        if Qs2Sqla.arguments.scalar.export in request.args:
+            filename = request.args.get(Qs2Sqla.arguments.scalar.export) or "{}{}{}".format(
+                self._model.__name__,
+                "_{}".format(page) if page else "",
+                "_{}".format(limit) if limit else ""
+            )
+            return self._response.csv(response, filename=filename)
 
         return self._response.build_response(
             builder, (response, *util.pagination_headers(pagination))
         )
-
-    def _export(self, response, page, limit, **kwargs):
-        """
-
-        :param response:
-        :param page:
-        :param limit:
-        :return:
-        """
-        filename = request.args.get(Qs2Sqla.arguments.scalar.export) or "{}{}{}".format(
-            self._model.__name__,
-            "_{}".format(page) if page else "",
-            "_{}".format(limit) if limit else ""
-        )
-        return self._response.csv(response, filename=filename, **kwargs)

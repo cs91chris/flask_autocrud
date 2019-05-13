@@ -1,7 +1,7 @@
 from collections import namedtuple
 
 
-class HTTP_STATUS:
+class HttpStatus:
     SUCCESS = 200
     CREATED = 201
     NO_CONTENT = 204
@@ -24,9 +24,6 @@ ALLOWED_METHODS = {
     'OPTIONS'
 }
 
-MODEL_VERSION = '1'
-COLLECTION_SUFFIX = 'List'
-
 
 def set_default_config(app):
     """
@@ -44,16 +41,6 @@ def set_default_config(app):
     app.config.setdefault('AUTOCRUD_FETCH_ENABLED', True)
     app.config.setdefault('AUTOCRUD_QUERY_STRING_FILTERS_ENABLED', True)
 
-
-Parsed = namedtuple(
-    'Parsed',
-    (
-        'fields',
-        'filters',
-        'orders',
-        'invalids',
-    )
-)
 
 Syntax = namedtuple(
     'Syntax',
