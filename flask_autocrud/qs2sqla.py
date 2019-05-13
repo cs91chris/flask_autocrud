@@ -129,11 +129,11 @@ class Qs2Sqla:
 
             if k == cls.arguments.vector.sort:
                 for item in cls.clear_empty(v):
+                    d = 'desc' if item.startswith(cls.syntax.REVERSE) else 'asc'
+                    item = cls.clear_escape(item, escape=cls.syntax.REVERSE)
+
                     if item in model.columns().keys():
-                        resp['sorting'].append(dict(
-                            field=cls.clear_escape(item, escape=cls.syntax.REVERSE),
-                            direction='desc' if item.startswith(cls.syntax.REVERSE) else 'asc'
-                        ))
+                        resp['sorting'].append(dict(field=item, direction=d))
                     else:
                         invalid.append(item)
 
