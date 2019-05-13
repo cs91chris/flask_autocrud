@@ -133,6 +133,12 @@ def test_resource_crud(client):
     res = client.delete('/artist/{}'.format(id))
     assert res.status_code == 204
 
+    res = client.delete('/artist/1000000000')
+    assert res.status_code == 404
+
+    res = client.get('/artist/1000000000')
+    assert res.status_code == 404
+
 
 def test_resource_meta(client):
     res = client.get('/artist/meta')
@@ -148,6 +154,15 @@ def test_get_list(client):
     assert res.status_code == 200
 
 
+def test_hateoas(client):
+    res = client.get('/artist/1')
+    assert res.status_code == 200
+
+    data = json.loads(res.data)
+    assert '_links' in data.keys()
+    assert data['_links'].get('self') == '/artist/1'
+
+
 def test_pagination(client):
     res = client.get('/artist?_page=1&_limit=5')
     assert_pagination(res, 206, '1', '5')
@@ -157,6 +172,54 @@ def test_export(client):
     res = client.get('/artist?_export=pippo')
     assert res.status_code == 200
     assert_export(res, 'pippo')
+
+
+def test_fields(client):
+    res = client.get('/artist')
+    assert res.status_code == 200
+
+    data = json.loads(res.data)
+    assert len(data[0].keys()) == 3
+
+    res = client.get('/artist?_fields=ArtistId')
+    assert res.status_code == 200
+
+    data = json.loads(res.data)
+    assert len(data[0].keys()) == 2
+
+
+def test_sorting(client):
+    res = client.get('/artist?_sort=ArtistId')
+    assert res.status_code == 200
+
+    data = json.loads(res.data)
+    first_id = data[0].get('ArtistId')
+
+    res = client.get('/artist?_sort=-ArtistId')
+    assert res.status_code == 200
+
+    data = json.loads(res.data)
+    last_id = data[0].get('ArtistId')
+    assert last_id != first_id
+
+
+def test_range(client):
+    res = client.get('/artist?ArtistId=(1;3)')
+    assert res.status_code == 200
+
+    data = json.loads(res.data)
+    assert len(data) == 3
+    assert data[0].get('ArtistId') == 1
+    assert data[1].get('ArtistId') == 2
+    assert data[2].get('ArtistId') == 3
+
+
+def test_null(client):
+    res = client.get('/artist?ArtistId=null')
+    assert res.status_code == 200
+
+    data = json.loads(res.data)
+    assert len(data) == 0
 
 
 def test_fetch(client):
@@ -169,3 +232,37 @@ def test_fetch(client):
 
     res = client.fetch('/artist?_page=1&_limit=5')
     assert_pagination(res, 206, '1', '5')
+
+
+def test_related(client):
+    res = client.fetch(
+        '/artist',
+        data={"related": {"Album": ["*"]}},
+        headers={'Content-Type': 'application/json'}
+    )
+    assert res.status_code == 200
+
+    data = json.loads(res.data)
+    assert data[0].get('AlbumList') is not None
+
+
+def test_filter(client):
+    res = client.fetch(
+        '/artist',
+        data={
+            "filters": [
+                {
+                    "model": "Artist",
+                    "field": "ArtistId",
+                    "op": "==",
+                    "value": 1
+                }
+            ]
+        },
+        headers={'Content-Type': 'application/json'}
+    )
+    assert res.status_code == 200
+
+    data = json.loads(res.data)
+    assert len(data) == 1
+    assert data[0].get('ArtistId') == 1
