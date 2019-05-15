@@ -1,3 +1,5 @@
+import colander
+
 from flask import request
 from flask import current_app as cap
 from flask.views import MethodView
@@ -9,6 +11,7 @@ from flask_response_builder.dictutils import to_flatten
 
 from .qs2sqla import Qs2Sqla
 from .config import HttpStatus as status
+from .validators import FetchPayloadSchema
 
 
 class Service(MethodView):
@@ -161,7 +164,12 @@ class Service(MethodView):
         :return:
         """
         _, builder = self._response.get_mimetype_accept()
-        data = request.get_json() or {}
+        try:
+            data = FetchPayloadSchema().deserialize(request.get_json() or {})
+        except colander.Invalid as exc:
+            return self._response.build_response(builder, (
+                dict(message=exc.asdict()), status.UNPROCESSABLE_ENTITY
+            ))
         return self._build_response_list(builder, data)
 
     def _build_response_list(self, builder, data, error=None):

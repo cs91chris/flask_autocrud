@@ -266,3 +266,42 @@ def test_filter(client):
     data = json.loads(res.data)
     assert len(data) == 1
     assert data[0].get('ArtistId') == 1
+
+
+def test_validators(client):
+    res = client.fetch(
+        '/customer',
+        data={
+            "fields": "CustomerId",
+            "related": {
+                "Employee": "*",
+                "Invoice": [1, 2, 3]
+            },
+            "filters":
+                {
+                    "model": "Invoice",
+                    "field": "InvoiceDate",
+                    "op": ">=",
+                    "value": "2010-04-01T00:00:00"
+                },
+            "sorting": [
+                {
+                    "model": 1,
+                    "fiel": "Total",
+                    "direction": "asc"
+                }
+            ]
+        },
+        headers={'Content-Type': 'application/json'}
+    )
+    assert res.status_code == 422
+
+    data = json.loads(res.data)
+    mess = data.get('message')
+    assert all(e in mess for e in (
+        "fields",
+        "filters",
+        "related",
+        "sorting.0.field",
+        "sorting.0.model"
+    ))

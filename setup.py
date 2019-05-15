@@ -35,7 +35,8 @@ setup(
         'Flask==1.0.2',
         'Flask-SQLAlchemy==2.4.0',
         'Flask-ResponseBuilder==2.0.1',
-        'sqlalchemy-filters==0.10.0'
+        'sqlalchemy-filters==0.10.0',
+        'colander==1.7.0'
     ],
     classifiers=[
         'Environment :: Web Environment',
