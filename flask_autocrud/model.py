@@ -159,26 +159,26 @@ class Model(object):
 
         :return:
         """
-        return {
-            'url': cls.__url__,
-            'methods': list(cls.__methods__),
-            'description': cls.__description__ or cls.__table__.comment,
-            'fields': [
-                {
-                    'name': col,
-                    'type': c.type.python_type.__name__,
-                    'primaryKey': c.primary_key,
-                    'autoincrement': c.autoincrement,
-                    'nullable': c.nullable,
-                    'unique': c.unique,
-                    'description': c.comment
-                } for col, c in cls.columns().items()
-            ]
-        }
+        return dict(
+            url=cls.__url__,
+            name=cls.__name__,
+            methods=list(cls.__methods__),
+            description=cls.__description__ or cls.__table__.comment,
+            fields=[dict(
+                name=col,
+                type=c.type.python_type.__name__,
+                key=c.primary_key,
+                autoincrement=c.autoincrement,
+                nullable=c.nullable,
+                unique=c.unique,
+                description=c.comment
+            ) for col, c in cls.columns().items()]
+        )
 
-    def to_dict(self):
+    def to_dict(self, links=False):
         """
 
+        :param links:
         :return:
         """
         resp = {}
@@ -189,15 +189,11 @@ class Model(object):
                 continue
 
             if isinstance(v, Model):
-                resp.update({
-                    v.__class__.__name__: v.to_dict()
-                })
+                resp.update({v.__class__.__name__: v.to_dict(links)})
             elif isinstance(v, list):
                 if len(v) > 0:
                     name = v[0].__class__.__name__ + self.collection_suffix
-                    resp.update({
-                        name: [i.to_dict() for i in v]
-                    })
+                    resp.update({name: [i.to_dict(links) for i in v]})
             else:
                 if isinstance(v, Decimal):
                     v = float(v)
@@ -206,7 +202,8 @@ class Model(object):
 
                 resp.update({k: v})
 
-        resp['_links'] = self.links()
+        if links:
+            resp['_links'] = self.links()
         return resp
 
     def links(self):
