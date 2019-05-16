@@ -211,12 +211,17 @@ class Model(object):
 
         :return:
         """
-        link_dict = {'self': self.resource_uri()}
+        link_dict = dict(self=self.resource_uri())
         for r in inspect(self.__class__).relationships:
             if not r.uselist:
                 instance = getattr(self, r.key)
                 if instance:
-                    link_dict[str(r.key)] = instance.resource_uri()
+                    link_dict[r.key] = instance.resource_uri()
+            else:
+                if isinstance(r.argument, Mapper):
+                    key = "_".join(r.key.split("_")[:-1])
+                    link_dict[key] = "{}{}".format(self.resource_uri(), r.argument.class_.__url__)
+
         return link_dict
 
     def resource_uri(self):

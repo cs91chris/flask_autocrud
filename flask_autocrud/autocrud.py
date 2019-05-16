@@ -144,6 +144,7 @@ class AutoCrud(object):
         pks = list(model().__table__.primary_key.columns)
         pk_type = pks[0].type.python_type.__name__ if len(pks) > 0 else 'string'
         add_route('/<{}:{}>'.format(pk_type, 'resource_id'), model.__methods__ - {'POST', 'FETCH'})
+        add_route('/<{}:{}>/<path:subresource>'.format(pk_type, 'resource_id'), {'GET'})
         self.models[model.__name__] = model
 
     def _register_resources_route(self):

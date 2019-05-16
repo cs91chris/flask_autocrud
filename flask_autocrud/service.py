@@ -5,6 +5,7 @@ from flask import current_app as cap
 from flask.views import MethodView
 
 from sqlalchemy import inspect
+from sqlalchemy.orm import Mapper
 import sqlalchemy_filters as sqlaf
 from sqlalchemy.exc import IntegrityError
 
@@ -130,47 +131,65 @@ class Service(MethodView):
             return res, self._location_header(resource), status.CREATED
         return _put()
 
-    def get(self, resource_id=None):
+    def get(self, resource_id=None, subresource=None):
         """
 
         :param resource_id:
+        :param subresource:
         :return:
         """
-        model = self._model
-        qsqla = Qs2Sqla(model)
-        _, builder = self._response.get_mimetype_accept()
-
         related = {}
+        model = self._model
+        _, builder = self._response.get_mimetype_accept()
+        filter_by_id = [Qs2Sqla(model).get_filter(model.primary_key_field(), str(resource_id))]
+
+        if request.path.endswith(cap.config.get('AUTOCRUD_METADATA_URL')):
+            return self._response.build_response(builder, model.description())
+
+        if subresource is not None:
+            for r in inspect(model).relationships:
+                if isinstance(r.argument, Mapper):
+                    key = "_".join(r.key.split("_")[:-1])
+                    if key.lower() == subresource.lower():
+                        model = r.argument.class_
+                        break
+            else:
+                return self._response.build_response(
+                    builder, (dict(message='Not Found'), status.NOT_FOUND)
+                )
+
+        qsqla = Qs2Sqla(model)
         if qsqla.arguments.scalar.extended in request.args:
             for r in inspect(model).relationships:
                 if not r.uselist:
                     related[r.argument.__name__] = ["*"]
 
         if resource_id is not None:
-            query, _ = qsqla.dict2sqla(dict(
-                filters=[qsqla.get_filter(model.primary_key_field(), str(resource_id))],
-                related=related
-            ))
-            res = query.one_or_none()
+            query, _ = qsqla.dict2sqla(dict(filters=filter_by_id, related=related))
 
-            if not res:
+            if subresource is None:
+                res = query.one_or_none()
+                if not res:
+                    return self._response.build_response(
+                        builder, (dict(message='Not Found'), status.NOT_FOUND)
+                    )
+
                 return self._response.build_response(
-                    builder, (dict(message='Not Found'), status.NOT_FOUND)
+                    builder, (res.to_dict(links=True), self._link_header(res))
                 )
-
-            return self._response.build_response(
-                builder, (res.to_dict(links=True), self._link_header(res))
-            )
-
-        if request.path.endswith(cap.config.get('AUTOCRUD_METADATA_URL')):
-            return self._response.build_response(builder, model.description())
 
         if cap.config.get('AUTOCRUD_QUERY_STRING_FILTERS_ENABLED') is True:
             data, error = qsqla.parse(request.args)
         else:
             data, error = {}, []
 
-        return self._build_response_list(builder, {**data, 'related': related}, error)
+        if resource_id is not None:
+            if data.get('filters') is None:
+                data['filters'] = filter_by_id
+            else:
+                data['filters'] += filter_by_id
+
+        return self._build_response_list(model, builder, {**data, 'related': related}, error)
 
     def fetch(self):
         """
@@ -186,17 +205,17 @@ class Service(MethodView):
             return self._response.build_response(builder, (
                 dict(message=exc.asdict()), status.UNPROCESSABLE_ENTITY
             ))
-        return self._build_response_list(builder, data)
+        return self._build_response_list(self._model, builder, data)
 
-    def _build_response_list(self, builder, data, error=None):
+    def _build_response_list(self, model, builder, data, error=None):
         """
 
+        :param model:
         :param builder:
         :param data:
         :param error:
         :return:
         """
-        model = self._model
         qsqla = Qs2Sqla(model)
         invalid = error or []
 

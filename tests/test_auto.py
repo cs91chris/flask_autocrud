@@ -110,7 +110,7 @@ def test_resource_crud(client):
     res = client.get('/artist/{}'.format(id))
     assert res.status_code == 200
     assert res.headers.get('Content-Type') == 'application/json'
-    assert res.headers.get('Link') == "</artist/{}>; rel=self".format(id)
+    assert res.headers.get('Link') == "</artist/{id}>; rel=self, </artist/{id}/album>; rel=related".format(id=id)
 
     data = json.loads(res.data)
     returned_id = data.get('ArtistId')
@@ -340,4 +340,20 @@ def test_validators(client):
         "related",
         "sorting.0.field",
         "sorting.0.model"
+    ))
+
+
+def test_subresource(client):
+    res = client.get('/album/5/track?_extended')
+    assert res.status_code == 200
+
+    data = json.loads(res.data)[0]
+    assert data['AlbumId'] == 5
+    assert all(e in data.keys() for e in (
+        "TrackId",
+        "GenreId",
+        "MediaTypeId",
+        "Album",
+        "Genre",
+        "MediaType"
     ))
