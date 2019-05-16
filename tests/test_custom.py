@@ -132,5 +132,124 @@ def test_resource_meta(client):
     assert res.headers.get('Content-Type') == 'application/json'
 
     data = json.loads(res.data)
-    assert all(i in data.keys() for i in ('description', 'fields', 'methods', 'url'))
+    assert all(i in data.keys() for i in (
+        'name',
+        'description',
+        'fields',
+        'methods',
+        'url'
+    ))
     assert data.get('description') == 'artists'
+
+
+def test_hateoas(client):
+    res = client.get('/artists/1')
+    assert res.status_code == 200
+
+    data = json.loads(res.data)
+    assert '_links' in data.keys()
+    assert data['_links'].get('self') == '/artists/1'
+
+
+def test_extended(client):
+    res = client.get('/albums/5?_extended')
+    assert res.status_code == 200
+
+    data = json.loads(res.data)
+    assert data['id'] == 5
+    assert isinstance(data["artists"], dict)
+
+
+def test_extended_list(client):
+    res = client.get('/albums?_extended')
+    assert res.status_code == 200
+
+    data = json.loads(res.data)[0]
+    assert isinstance(data["artists"], dict)
+    assert data.get('_links') is not None
+
+
+def test_fields(client):
+    res = client.get('/artists')
+    assert res.status_code == 200
+
+    data = json.loads(res.data)
+    assert len(data[0].keys()) == 3
+
+    res = client.get('/artists?_fields=id')
+    assert res.status_code == 200
+
+    data = json.loads(res.data)
+    assert len(data[0].keys()) == 2
+    assert all(e in data[0].keys() for e in (
+        "id",
+        "_links"
+    ))
+
+
+def test_sorting(client):
+    res = client.get('/artists?_sort=id')
+    assert res.status_code == 200
+
+    data = json.loads(res.data)
+    first_id = data[0].get('id')
+
+    res = client.get('/artists?_sort=-id')
+    assert res.status_code == 200
+
+    data = json.loads(res.data)
+    last_id = data[0].get('id')
+    assert last_id != first_id
+
+
+def test_range(client):
+    res = client.get('/artists?id=(1;3)')
+    assert res.status_code == 200
+
+    data = json.loads(res.data)
+    assert len(data) == 3
+    assert data[0].get('id') == 1
+    assert data[1].get('id') == 2
+    assert data[2].get('id') == 3
+
+
+def test_null(client):
+    res = client.get('/artists?id=null')
+    assert res.status_code == 200
+
+    data = json.loads(res.data)
+    assert len(data) == 0
+
+
+def test_related(client):
+    res = client.fetch(
+        '/albums',
+        data={"related": {"artists": ["*"]}},
+        headers={'Content-Type': 'application/json'}
+    )
+    assert res.status_code == 200
+
+    data = json.loads(res.data)
+    assert data[0].get('artists') is not None
+
+
+def test_filter(client):
+    res = client.fetch(
+        '/artists',
+        data={
+            "filters": [
+                {
+                    "model": "artists",
+                    "field": "id",
+                    "op": "==",
+                    "value": 1
+                }
+            ]
+        },
+        headers={'Content-Type': 'application/json'}
+    )
+    assert res.status_code == 200
+
+    data = json.loads(res.data)
+    assert len(data) == 1
+    assert data[0].get('id') == 1

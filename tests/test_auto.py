@@ -146,7 +146,13 @@ def test_resource_meta(client):
     assert res.headers.get('Content-Type') == 'application/json'
 
     data = json.loads(res.data)
-    assert all(i in data.keys() for i in ('description', 'fields', 'methods', 'url'))
+    assert all(i in data.keys() for i in (
+        'name',
+        'description',
+        'fields',
+        'methods',
+        'url'
+    ))
 
 
 def test_get_list(client):
@@ -169,9 +175,35 @@ def test_pagination(client):
 
 
 def test_export(client):
-    res = client.get('/artist?_export=pippo')
+    res = client.get('/track?_export=pippo')
     assert res.status_code == 200
     assert_export(res, 'pippo')
+
+
+def test_extended(client):
+    res = client.get('/track/5?_extended')
+    assert res.status_code == 200
+
+    data = json.loads(res.data)
+    assert data['TrackId'] == 5
+    assert all(isinstance(data[e], dict) for e in (
+        "Album",
+        "Genre",
+        "MediaType"
+    ))
+
+
+def test_extended_list(client):
+    res = client.get('/track?_extended')
+    assert res.status_code == 206
+
+    data = json.loads(res.data)[0]
+    assert data.get('_links') is not None
+    assert all(isinstance(data[e], dict) for e in (
+        "Album",
+        "Genre",
+        "MediaType"
+    ))
 
 
 def test_fields(client):
@@ -186,6 +218,10 @@ def test_fields(client):
 
     data = json.loads(res.data)
     assert len(data[0].keys()) == 2
+    assert all(e in data[0].keys() for e in (
+        "ArtistId",
+        "_links"
+    ))
 
 
 def test_sorting(client):

@@ -85,10 +85,10 @@ class Service(MethodView):
 
             missing, unknown = model.validate(data)
             if unknown or missing:
-                return {
-                    'unknown': unknown or [],
-                    'missing': missing or []
-                }, status.UNPROCESSABLE_ENTITY
+                return dict(
+                    unknown=unknown or [],
+                    missing=missing or []
+                ), status.UNPROCESSABLE_ENTITY
 
             resource = model.query.filter_by(**data).first()
 
@@ -140,14 +140,13 @@ class Service(MethodView):
         qsqla = Qs2Sqla(model)
         _, builder = self._response.get_mimetype_accept()
 
+        related = {}
+        if qsqla.arguments.scalar.extended in request.args:
+            for r in inspect(model).relationships:
+                if not r.uselist:
+                    related[r.argument.__name__] = ["*"]
+
         if resource_id is not None:
-            related = {}
-
-            if qsqla.arguments.scalar.extended in request.args:
-                for r in inspect(model).relationships:
-                    if not r.uselist:
-                        related[r.argument.__name__] = ["*"]
-
             query, _ = qsqla.dict2sqla(dict(
                 filters=[qsqla.get_filter(model.primary_key_field(), str(resource_id))],
                 related=related
@@ -160,7 +159,7 @@ class Service(MethodView):
                 )
 
             return self._response.build_response(
-                builder, (res.to_dict(), self._link_header(res))
+                builder, (res.to_dict(links=True), self._link_header(res))
             )
 
         if request.path.endswith(cap.config.get('AUTOCRUD_METADATA_URL')):
@@ -171,7 +170,7 @@ class Service(MethodView):
         else:
             data, error = {}, []
 
-        return self._build_response_list(builder, data, error)
+        return self._build_response_list(builder, {**data, 'related': related}, error)
 
     def fetch(self):
         """
@@ -201,7 +200,10 @@ class Service(MethodView):
         qsqla = Qs2Sqla(model)
         invalid = error or []
 
-        page, limit, error = qsqla.get_pagination(request.args, cap.config.get('AUTOCRUD_MAX_QUERY_LIMIT'))
+        page, limit, error = qsqla.get_pagination(
+            request.args,
+            cap.config.get('AUTOCRUD_MAX_QUERY_LIMIT')
+        )
         invalid += error
 
         query, error = qsqla.dict2sqla(data)
@@ -216,11 +218,14 @@ class Service(MethodView):
         result = query.all()
 
         response = []
+        links_enabled = cap.config.get('AUTOCRUD_EXPORT_ENABLED') is False \
+            or qsqla.arguments.scalar.export not in request.args
+
         for r in result:
             if qsqla.arguments.scalar.as_table in request.args:
                 response += to_flatten(r, to_dict=model.to_dict)
             else:
-                response.append(r.to_dict())
+                response.append(r.to_dict(links=links_enabled))
 
         if cap.config.get('AUTOCRUD_EXPORT_ENABLED') is True:
             if qsqla.arguments.scalar.export in request.args:
@@ -245,7 +250,7 @@ class Service(MethodView):
         """
         session.add(resource)
         session.flush()
-        res = resource.to_dict()
+        res = resource.to_dict(links=True)
         session.commit()
         return res
 
@@ -261,7 +266,7 @@ class Service(MethodView):
         session.merge(resource)
         resource.update(data)
         session.flush()
-        res = resource.to_dict()
+        res = resource.to_dict(links=True)
         session.commit()
         return res
 
@@ -273,13 +278,13 @@ class Service(MethodView):
         :return:
         """
         links = resource.links()
-        link_string = '<{}>; rel=self'.format(links['self'])
+        link_string = '<{}>; rel=self'.format(links.get('self'))
 
         for k, l in links.items():
             if k != 'self':
                 link_string += ', <{}>; rel=related'.format(l)
 
-        return {'Link': link_string}
+        return dict(Link=link_string)
 
     @staticmethod
     def _location_header(resource):
@@ -289,7 +294,7 @@ class Service(MethodView):
         :return:
         """
         location = resource.links()
-        return {'Location': location['self']}
+        return dict(Location=location.get('self'))
 
     @staticmethod
     def _pagination_headers(pagination):
