@@ -9,31 +9,36 @@ from .config import default_arguments
 
 
 class Qs2Sqla:
-    syntax = default_syntax
-    arguments = default_arguments
+    def __init__(self, model, syntax=None, arguments=None):
+        """
 
-    @classmethod
-    def clear_empty(cls, l):
+        :param model:
+        :param syntax:
+        :param arguments:
+        """
+        self._model = model
+        self.syntax = syntax or default_syntax
+        self.arguments = arguments or default_arguments
+
+    def clear_empty(self, l):
         """
 
         :param l:
         :return:
         """
-        return [i for i in l.split(cls.syntax.SEP) if i != ""]
+        return [i for i in l.split(self.syntax.SEP) if i != ""]
 
-    @classmethod
-    def clear_escape(cls, i, escape=None):
+    def clear_escape(self, i, escape=None):
         """
 
         :param i:
         :param escape:
         :return:
         """
-        esc = escape or cls.syntax.ESCAPE
+        esc = escape or self.syntax.ESCAPE
         return i[len(esc):] if i.startswith(esc) else i
 
-    @classmethod
-    def get_pagination(cls, conf, max_limit):
+    def get_pagination(self, conf, max_limit):
         """
 
         :param conf:
@@ -52,13 +57,13 @@ class Qs2Sqla:
 
         invalid = []
         max_limit = valid_number(max_limit)
-        page = valid_number(conf.get(cls.arguments.scalar.page))
-        limit = valid_number(conf.get(cls.arguments.scalar.limit))
+        page = valid_number(conf.get(self.arguments.scalar.page))
+        limit = valid_number(conf.get(self.arguments.scalar.limit))
 
         if page is False:
-            invalid.append(cls.arguments.scalar.page)
+            invalid.append(self.arguments.scalar.page)
         if limit is False:
-            invalid.append(cls.arguments.scalar.limit)
+            invalid.append(self.arguments.scalar.limit)
         if max_limit is False:
             invalid.append('invalid max_limit: {}'.format(max_limit))
 
@@ -69,104 +74,98 @@ class Qs2Sqla:
 
         return page, limit, invalid
 
-    @classmethod
-    def get_filter(cls, f, v):
+    def get_filter(self, f, v):
         """
 
         :param f:
         :param v:
         :return:
         """
-        if v.startswith(cls.syntax.GT):
-            return dict(field=f, op='>', value=cls.clear_escape(v, escape=cls.syntax.GT))
-        if v.startswith(cls.syntax.LT):
-            return dict(field=f, op='<', value=cls.clear_escape(v, escape=cls.syntax.LT))
-        if v.startswith(cls.syntax.GTE):
-            return dict(field=f, op='>=', value=cls.clear_escape(v, escape=cls.syntax.GTE))
-        if v.startswith(cls.syntax.LTE):
-            return dict(field=f, op='<=', value=cls.clear_escape(v, escape=cls.syntax.LTE))
-        if v.startswith(cls.syntax.NOT_LIKE):
-            return dict(field=f, op='not_like', value=cls.clear_escape(v, escape=cls.syntax.NOT_LIKE))
-        if v.startswith(cls.syntax.LIKE):
-            return dict(field=f, op='like', value=cls.clear_escape(v, escape=cls.syntax.LIKE))
+        def to_dict(op, value):
+            return dict(model=self._model.__name__, field=f, op=op, value=value)
 
-        if v.startswith(cls.syntax.RNS) and v.endswith(cls.syntax.RNE):
-            down, up = v[len(cls.syntax.RNS):-len(cls.syntax.RNE)].split(cls.syntax.SEP, 1)
-            return {
-                'and': [
-                    dict(field=f, op='>=', value=down),
-                    dict(field=f, op='<=', value=up)
-                ]
-            }
+        if v.startswith(self.syntax.GT):
+            return to_dict('>', self.clear_escape(v, escape=self.syntax.GT))
+        if v.startswith(self.syntax.LT):
+            return to_dict('<', self.clear_escape(v, escape=self.syntax.LT))
+        if v.startswith(self.syntax.GTE):
+            return to_dict('>=', self.clear_escape(v, escape=self.syntax.GTE))
+        if v.startswith(self.syntax.LTE):
+            return to_dict('<=', self.clear_escape(v, escape=self.syntax.LTE))
+        if v.startswith(self.syntax.NOT_LIKE):
+            return to_dict('not_like', self.clear_escape(v, escape=self.syntax.NOT_LIKE))
+        if v.startswith(self.syntax.LIKE):
+            return to_dict('like', self.clear_escape(v, escape=self.syntax.LIKE))
 
-        if v.startswith(cls.syntax.NOT_RNS) and v.endswith(cls.syntax.NOT_RNE):
-            down, up = v[len(cls.syntax.NOT_RNS):-len(cls.syntax.NOT_RNE)].split(cls.syntax.SEP, 1)
-            return {
-                'or': [
-                    dict(field=f, op='<', value=down),
-                    dict(field=f, op='>', value=up)
-                ]
-            }
+        if v.startswith(self.syntax.RNS) and v.endswith(self.syntax.RNE):
+            down, up = v[len(self.syntax.RNS):-len(self.syntax.RNE)].split(self.syntax.SEP, 1)
+            return {'and': [to_dict('>=', down), to_dict('<=', up)]}
 
-        item = cls.clear_empty(v)
-        if item[0].startswith(cls.syntax.NOT):
-            item[0] = cls.clear_escape(item[0], escape=cls.syntax.NOT)
-            return dict(field=f, op='not_in', value=item)
+        if v.startswith(self.syntax.NOT_RNS) and v.endswith(self.syntax.NOT_RNE):
+            down, up = v[len(self.syntax.NOT_RNS):-len(self.syntax.NOT_RNE)].split(self.syntax.SEP, 1)
+            return {'or': [to_dict('<', down), to_dict('>', up)]}
+
+        item = self.clear_empty(v)
+        if item[0].startswith(self.syntax.NOT):
+            item[0] = self.clear_escape(item[0], escape=self.syntax.NOT)
+            return to_dict('not_in', item)
         else:
-            item[0] = cls.clear_escape(item[0])
-            return dict(field=f, op='in', value=item)
+            item[0] = self.clear_escape(item[0])
+            return to_dict('in', item)
 
-    @classmethod
-    def parse(cls, args, model):
+    def parse(self, args):
         """
 
         :param args:
-        :param model:
         :return:
         """
         invalid = []
         resp = dict(fields=[], filters=[], sorting=[])
 
         for k, v in args.items():
-            if k in cls.arguments.scalar:
+            if k in self.arguments.scalar:
                 continue
 
-            if k == cls.arguments.vector.sort:
-                for item in cls.clear_empty(v):
-                    d = 'desc' if item.startswith(cls.syntax.REVERSE) else 'asc'
-                    item = cls.clear_escape(item, escape=cls.syntax.REVERSE)
+            if k == self.arguments.vector.sort:
+                for item in self.clear_empty(v):
+                    d = 'desc' if item.startswith(self.syntax.REVERSE) else 'asc'
+                    item = self.clear_escape(item, escape=self.syntax.REVERSE)
 
-                    if item in model.columns().keys():
+                    if item in self._model.columns().keys():
                         resp['sorting'].append(dict(field=item, direction=d))
                     else:
                         invalid.append(item)
 
-            elif k == cls.arguments.vector.fields:
-                for item in cls.clear_empty(v):
-                    if item in model.columns().keys():
+            elif k == self.arguments.vector.fields:
+                for item in self.clear_empty(v):
+                    if item in self._model.columns().keys():
                         resp['fields'].append(item)
                     else:
                         invalid.append(item)
 
-            elif k in model.columns().keys():
+            elif k in self._model.columns().keys():
                 resp['filters'].append({
-                    'or': [cls.get_filter(k, item) for item in args.getlist(k)]
+                    'or': [self.get_filter(k, item) for item in args.getlist(k)]
                 })
             else:
                 invalid.append(k)
         return resp, invalid
 
-    @classmethod
-    def dict2sqla(cls, model, data):
+    def dict2sqla(self, data):
+        """
+
+        :param data:
+        :return:
+        """
         invalid = []
-        query = model.query
-        fields = data.get('fields') or list(model.columns().keys())
+        query = self._model.query
+        fields = data.get('fields') or list(self._model.columns().keys())
         related = data.get('related') or {}
         filters = data.get('filters') or []
         sort = data.get('sorting') or []
 
         for k in fields:
-            if k not in model.columns().keys():
+            if k not in self._model.columns().keys():
                 invalid.append(k)
 
         if len(invalid) == 0 and len(fields) > 0:
@@ -176,11 +175,11 @@ class Qs2Sqla:
                 invalid.append(fields)
 
         for k in related.keys():
-            instance, columns = model.related(k)
+            instance, columns = self._model.related(k)
             if instance is not None:
                 _columns = related.get(k)
                 try:
-                    if len(_columns) > 0 and _columns[0] != cls.syntax.ALL:
+                    if len(_columns) > 0 and _columns[0] != self.syntax.ALL:
                         _invalid = list(set(related.get(k)) - set(columns))
                         if len(_invalid) > 0:
                             _columns = _invalid
@@ -206,7 +205,7 @@ class Qs2Sqla:
             resource = flt.get('model')
             try:
                 if resource:
-                    _, cols = model.related(resource)
+                    _, cols = self._model.related(resource)
                     if cols and cols.get(flt.get('field')) is None:
                         raise exceptions.FieldNotFound
 

@@ -4,6 +4,7 @@ from flask import request
 from flask import current_app as cap
 from flask.views import MethodView
 
+from sqlalchemy import inspect
 import sqlalchemy_filters as sqlaf
 from sqlalchemy.exc import IntegrityError
 
@@ -136,23 +137,37 @@ class Service(MethodView):
         :return:
         """
         model = self._model
+        qsqla = Qs2Sqla(model)
         _, builder = self._response.get_mimetype_accept()
 
         if resource_id is not None:
-            r = model.query.get(resource_id)
-            if not r:
+            related = {}
+
+            if qsqla.arguments.scalar.extended in request.args:
+                for r in inspect(model).relationships:
+                    if not r.uselist:
+                        related[r.argument.__name__] = ["*"]
+
+            query, _ = qsqla.dict2sqla(dict(
+                filters=[qsqla.get_filter(model.primary_key_field(), str(resource_id))],
+                related=related
+            ))
+            res = query.one_or_none()
+
+            if not res:
                 return self._response.build_response(
                     builder, (dict(message='Not Found'), status.NOT_FOUND)
                 )
+
             return self._response.build_response(
-                builder, (r.to_dict(), self._link_header(r))
+                builder, (res.to_dict(), self._link_header(res))
             )
 
         if request.path.endswith(cap.config.get('AUTOCRUD_METADATA_URL')):
             return self._response.build_response(builder, model.description())
 
         if cap.config.get('AUTOCRUD_QUERY_STRING_FILTERS_ENABLED') is True:
-            data, error = Qs2Sqla.parse(request.args, model)
+            data, error = qsqla.parse(request.args)
         else:
             data, error = {}, []
 
@@ -164,8 +179,10 @@ class Service(MethodView):
         :return:
         """
         _, builder = self._response.get_mimetype_accept()
+
         try:
-            data = FetchPayloadSchema().deserialize(request.get_json() or {})
+            schema = FetchPayloadSchema()
+            data = schema.deserialize(request.get_json() or {})
         except colander.Invalid as exc:
             return self._response.build_response(builder, (
                 dict(message=exc.asdict()), status.UNPROCESSABLE_ENTITY
@@ -181,12 +198,13 @@ class Service(MethodView):
         :return:
         """
         model = self._model
+        qsqla = Qs2Sqla(model)
         invalid = error or []
 
-        page, limit, error = Qs2Sqla.get_pagination(request.args, cap.config.get('AUTOCRUD_MAX_QUERY_LIMIT'))
+        page, limit, error = qsqla.get_pagination(request.args, cap.config.get('AUTOCRUD_MAX_QUERY_LIMIT'))
         invalid += error
 
-        query, error = Qs2Sqla.dict2sqla(model, data)
+        query, error = qsqla.dict2sqla(data)
         invalid += error
 
         if len(invalid) > 0:
@@ -199,14 +217,14 @@ class Service(MethodView):
 
         response = []
         for r in result:
-            if Qs2Sqla.arguments.scalar.as_table in request.args:
+            if qsqla.arguments.scalar.as_table in request.args:
                 response += to_flatten(r, to_dict=model.to_dict)
             else:
                 response.append(r.to_dict())
 
         if cap.config.get('AUTOCRUD_EXPORT_ENABLED') is True:
-            if Qs2Sqla.arguments.scalar.export in request.args:
-                filename = request.args.get(Qs2Sqla.arguments.scalar.export) or "{}{}{}".format(
+            if qsqla.arguments.scalar.export in request.args:
+                filename = request.args.get(qsqla.arguments.scalar.export) or "{}{}{}".format(
                     self._model.__name__,
                     "_{}".format(page) if page else "",
                     "_{}".format(limit) if limit else ""
