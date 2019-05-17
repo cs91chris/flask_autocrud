@@ -1,10 +1,9 @@
 from decimal import Decimal
 from datetime import datetime
 
-from sqlalchemy.inspection import inspect
 from sqlalchemy.orm.mapper import Mapper
-from sqlalchemy.orm.attributes import InstrumentedAttribute
-from sqlalchemy.orm.relationships import RelationshipProperty
+from sqlalchemy.inspection import inspect
+from sqlalchemy.orm.properties import ColumnProperty
 
 from .config import ALLOWED_METHODS
 
@@ -37,14 +36,13 @@ class Model(object):
         cls.__pks__ = []
         cls.__cols__ = {}
 
-        for i in cls.__dict__:  # TODO find a best solution
+        for i in cls.__dict__:
             if not i.startswith('_') and i not in cls.__hidden__:
                 col = getattr(cls, i)
-                if isinstance(col, InstrumentedAttribute):
-                    if not isinstance(col.comparator, RelationshipProperty.Comparator):
-                        cls.__cols__[i] = col
-                        if col.primary_key:
-                            cls.__pks__.append(i)
+                if isinstance(col.comparator, ColumnProperty.Comparator):
+                    cls.__cols__[i] = col
+                    if col.primary_key:
+                        cls.__pks__.append(i)
 
     @classmethod
     def _load_related(cls):
@@ -55,8 +53,9 @@ class Model(object):
         cls.__rels__ = {}
 
         for r in inspect(cls).relationships:
+            print(r.__dict__)
             if isinstance(r.argument, Mapper):
-                key = "_".join(r.key.split("_")[:-1])
+                key = r.argument.class_.__name__
                 columns = r.argument.class_().columns()
             else:
                 key = r.key
@@ -212,15 +211,15 @@ class Model(object):
         :return:
         """
         link_dict = dict(self=self.resource_uri())
+
         for r in inspect(self.__class__).relationships:
             if not r.uselist:
                 instance = getattr(self, r.key)
                 if instance:
                     link_dict[r.key] = instance.resource_uri()
-            else:
-                if isinstance(r.argument, Mapper):
-                    key = "_".join(r.key.split("_")[:-1])
-                    link_dict[key] = "{}{}".format(self.resource_uri(), r.argument.class_.__url__)
+            elif isinstance(r.argument, Mapper):
+                key = r.argument.class_.__name__
+                link_dict[key] = "{}{}".format(self.resource_uri(), r.argument.class_.__url__)
 
         return link_dict
 

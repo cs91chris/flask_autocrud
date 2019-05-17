@@ -5,11 +5,9 @@ from sqlalchemy.ext.declarative import declarative_base
 
 from flask_autocrud.model import Model
 from flask_autocrud.service import Service
-
-from .config import set_default_config
-
 from flask_response_builder import ResponseBuilder
 
+from .config import set_default_config
 
 class AutoCrud(object):
     def __init__(self, app=None, db=None, schema=None, models=None, **kwargs):
