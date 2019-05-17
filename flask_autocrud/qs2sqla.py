@@ -20,13 +20,14 @@ class Qs2Sqla:
         self.syntax = syntax or default_syntax
         self.arguments = arguments or default_arguments
 
-    def clear_empty(self, l):
+    def clear_empty(self, l, sep=None):
         """
 
         :param l:
+        :param sep:
         :return:
         """
-        return [i for i in l.split(self.syntax.SEP) if i != ""]
+        return [i for i in l.split(sep or self.syntax.SEP) if i != ""]
 
     def clear_escape(self, i, escape=None):
         """
@@ -82,6 +83,12 @@ class Qs2Sqla:
         :return:
         """
         def to_dict(op, value):
+            """
+
+            :param op:
+            :param value:
+            :return:
+            """
             return dict(model=self._model.__name__, field=f, op=op, value=value)
 
         if v.startswith(self.syntax.GT):

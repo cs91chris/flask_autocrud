@@ -4,10 +4,9 @@ from flask import request
 from flask import current_app as cap
 from flask.views import MethodView
 
-from sqlalchemy import inspect
-from sqlalchemy.orm import Mapper
 import sqlalchemy_filters as sqlaf
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm.attributes import ScalarObjectAttributeImpl
 
 from flask_response_builder.dictutils import to_flatten
 
@@ -147,22 +146,17 @@ class Service(MethodView):
             return self._response.build_response(builder, model.description())
 
         if subresource is not None:
-            for r in inspect(model).relationships:
-                if isinstance(r.argument, Mapper):
-                    key = "_".join(r.key.split("_")[:-1])
-                    if key.lower() == subresource.lower():
-                        model = r.argument.class_
-                        break
-            else:
+            model = model.submodel_from_url("/" + subresource)
+            if not model:
                 return self._response.build_response(
                     builder, (dict(message='Not Found'), status.NOT_FOUND)
                 )
 
         qsqla = Qs2Sqla(model)
         if qsqla.arguments.scalar.extended in request.args:
-            for r in inspect(model).relationships:
-                if not r.uselist:
-                    related[r.argument.__name__] = ["*"]
+            for k, v in model.related().items():
+                if isinstance(v['instance'].impl, ScalarObjectAttributeImpl):
+                    related.update({k: "*"})
 
         if resource_id is not None:
             query, _ = qsqla.dict2sqla(dict(filters=filter_by_id, related=related))
@@ -323,6 +317,9 @@ class Service(MethodView):
         :return:
         """
         code = status.SUCCESS
+
+        if not pagination:
+            return {}, code
 
         total_results = pagination.total_results
         page_number = pagination.page_number

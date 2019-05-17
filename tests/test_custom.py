@@ -102,7 +102,7 @@ def test_resource_crud(client):
     res = client.get('/artists/{}'.format(id))
     assert res.status_code == 200
     assert res.headers.get('Content-Type') == 'application/json'
-    assert res.headers.get('Link') == "</artists/{}>; rel=self".format(id)
+    assert res.headers.get('Link') == "</artists/{id}>; rel=self, </artists/{id}/albums>; rel=related".format(id=id)
 
     data = json.loads(res.data)
     returned_id = data.get('id')
@@ -253,3 +253,16 @@ def test_filter(client):
     data = json.loads(res.data)
     assert len(data) == 1
     assert data[0].get('id') == 1
+
+
+def test_subresource(client):
+    res = client.get('/artists/1/albums?_extended')
+    assert res.status_code == 200
+
+    data = json.loads(res.data)[0]
+    assert data['artist_id'] == 1
+    assert all(e in data.keys() for e in (
+        "id",
+        "title",
+        "artists"
+    ))

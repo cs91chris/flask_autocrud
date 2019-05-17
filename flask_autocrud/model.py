@@ -24,7 +24,7 @@ class Model(object):
     def __str__(self):
         """
 
-        :return:
+        :return: (str) primary key value
         """
         return str(getattr(self, self.primary_key_field()))
 
@@ -48,17 +48,15 @@ class Model(object):
     def _load_related(cls):
         """
 
-        :return:
         """
         cls.__rels__ = {}
 
         for r in inspect(cls).relationships:
-            print(r.__dict__)
             if isinstance(r.argument, Mapper):
                 key = r.argument.class_.__name__
                 columns = r.argument.class_().columns()
             else:
-                key = r.key
+                key = r.argument.__name__
                 columns = r.argument.columns()
 
             instance = getattr(cls, r.key)
@@ -121,7 +119,7 @@ class Model(object):
         return cls.__pks__[0]
 
     @classmethod
-    def related(cls, name):
+    def related(cls, name=None):
         """
 
         :param name:
@@ -130,15 +128,27 @@ class Model(object):
         if not cls.__rels__:
             cls._load_related()
 
-        if not name:
-            return None, None
+        if name is None:
+            return cls.__rels__
 
-        rel = {}
         for k in cls.__rels__.keys():
-            if k.lower() == name.lower():
-                rel = cls.__rels__.get(k)
+            print(k)
+            if k == name:
+                return cls.__rels__.get(k).get('instance'),\
+                       cls.__rels__.get(k).get('columns')
+        return None, None
 
-        return rel.get('instance'), rel.get('columns')
+    @classmethod
+    def submodel_from_url(cls, url):
+        """
+
+        :param url:
+        :return:
+        """
+        for r in inspect(cls).relationships:
+            if isinstance(r.argument, Mapper):
+                if r.argument.class_.__url__ == url:
+                    return r.argument.class_
 
     @classmethod
     def validate(cls, data):

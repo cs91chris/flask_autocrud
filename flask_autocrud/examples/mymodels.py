@@ -18,22 +18,24 @@ class CustomAdminView(ModelView):
     can_set_page_size = True
     can_view_details = True
     details_modal = True
-    can_export = True
 
 
 class artists(db.Model, Model):
     __tablename__ = "Artist"
-    ArtistId = db.Column(db.Integer, primary_key=True)
-    Name = db.Column(db.String(80), unique=True, nullable=False)
+    __description__ = 'artists'
+    id = db.Column('ArtistId', db.Integer, primary_key=True, comment='primarykey')
+    name = db.Column('Name', db.String(80), unique=True, nullable=False)
 
 
 class albums(db.Model, Model):
     __tablename__ = "Album"
     __description__ = 'my albums table'
     id = db.Column('AlbumId', db.Integer, primary_key=True)
-    title = db.Column('Title', db.String(80), unique=True, nullable=False)
-    ArtistId = db.Column(db.Integer, ForeignKey("Artist.ArtistId"), nullable=False, comment="column description")
-    artists = relationship(artists, backref="albums")  # NOTE: it must be the same name of related class
+    title = db.Column('Title', db.String(80), unique=True, nullable=False, comment="column description")
+    artist_id = db.Column('ArtistId', db.Integer, ForeignKey("Artist.ArtistId"), nullable=False)
+    # NOTE: it must be the same name of related class otherwise there will be unknown side effects
+    # This will change in future versions
+    artists = relationship(artists, backref="albums")
 
 
 def main():
