@@ -53,7 +53,7 @@ def client(app):
 def assert_pagination(res, code, page, limit):
     assert res.status_code == code
     assert res.headers.get('Pagination-Page') == page
-    assert res.headers.get('Pagination-Limit') == limit
+    assert res.headers.get('Pagination-Page-Size') == limit
     assert res.headers.get('Pagination-Count') is not None
     assert res.headers.get('Pagination-Num-Pages') is not None
 

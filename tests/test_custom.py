@@ -20,13 +20,15 @@ db = SQLAlchemy()
 
 class artists(db.Model, Model):
     __tablename__ = "Artist"
-    __description__ = 'artists'
+    __description__ = "artists"
     id = db.Column('ArtistId', db.Integer, primary_key=True, comment='primarykey')
     name = db.Column('Name', db.String(80), unique=True, nullable=False)
 
 
 class albums(db.Model, Model):
     __tablename__ = "Album"
+    __hidden__ = "title"
+    __url__ = '/myalbum'
     id = db.Column('AlbumId', db.Integer, primary_key=True)
     title = db.Column('Title', db.String(80), unique=True, nullable=False)
     artist_id = db.Column('ArtistId', db.Integer, ForeignKey("Artist.ArtistId"), nullable=False)
@@ -102,7 +104,7 @@ def test_resource_crud(client):
     res = client.get('/artists/{}'.format(id))
     assert res.status_code == 200
     assert res.headers.get('Content-Type') == 'application/json'
-    assert res.headers.get('Link') == "</artists/{id}>; rel=self, </artists/{id}/albums>; rel=related".format(id=id)
+    assert res.headers.get('Link') == "</artists/{id}>; rel=self, </artists/{id}/myalbum>; rel=related".format(id=id)
 
     data = json.loads(res.data)
     returned_id = data.get('id')
@@ -152,7 +154,7 @@ def test_hateoas(client):
 
 
 def test_extended(client):
-    res = client.get('/albums/5?_extended')
+    res = client.get('/myalbum/5?_extended')
     assert res.status_code == 200
 
     data = json.loads(res.data)
@@ -161,7 +163,7 @@ def test_extended(client):
 
 
 def test_extended_list(client):
-    res = client.get('/albums?_extended')
+    res = client.get('/myalbum?_extended')
     assert res.status_code == 200
 
     data = json.loads(res.data)[0]
@@ -223,7 +225,7 @@ def test_null(client):
 
 def test_related(client):
     res = client.fetch(
-        '/albums',
+        '/myalbum',
         data={"related": {"artists": ["*"]}},
         headers={'Content-Type': 'application/json'}
     )
@@ -256,13 +258,27 @@ def test_filter(client):
 
 
 def test_subresource(client):
-    res = client.get('/artists/1/albums?_extended')
+    res = client.get('/artists/1/myalbum?_extended')
     assert res.status_code == 200
 
     data = json.loads(res.data)[0]
     assert data['artist_id'] == 1
     assert all(e in data.keys() for e in (
         "id",
-        "title",
         "artists"
     ))
+
+
+def test_hidden_field(client):
+    res = client.get('/myalbum/5')
+    assert res.status_code == 200
+
+    data = json.loads(res.data)
+    assert data['id'] == 5
+    assert len(data.keys()) == 3
+
+    res = client.get('/myalbum/meta')
+    assert res.status_code == 200
+
+    data = json.loads(res.data)
+    assert len(data['fields']) == 2

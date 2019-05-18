@@ -9,31 +9,35 @@ from flask_response_builder import ResponseBuilder
 
 from .config import set_default_config
 
+
 class AutoCrud(object):
-    def __init__(self, app=None, db=None, schema=None, models=None, **kwargs):
+    def __init__(self, app=None, db=None, models=None, builder=None, **kwargs):
         """
 
         :param db:
         :param app:
-        :param schema:
         :param models:
+        :param builder:
         """
         self._models = {}
         self._app = app
         self._db = db
-        self._schema = schema
         self._api = None
-        self._subdomain = None
-        self._baseurl = None
-        self._response_builder = ResponseBuilder()
+        self._response_builder = None
 
         if app is not None:
             self.init_app(
                 self._app, self._db,
-                schema=self._schema,
-                models=models,
-                **kwargs
+                models=models, builder=builder, **kwargs
             )
+
+    @property
+    def blueprint(self):
+        """
+
+        :return:
+        """
+        return self._api
 
     @property
     def response_builder(self):
@@ -51,38 +55,51 @@ class AutoCrud(object):
         """
         return self._models
 
-    def init_app(self, app, db, schema=None, models=None, **kwargs):
+    def init_app(self, app, db, models=None, builder=None, **kwargs):
         """
 
         :param app:
         :param db:
-        :param schema:
         :param models:
+        :param builder:
         :return:
         """
-        self._app = app
         self._db = db
-        self._schema = schema
+        self._app = app
+        self._response_builder = builder or ResponseBuilder()
+
+        if not isinstance(self._response_builder, ResponseBuilder):
+            raise AttributeError(
+                "'builder' type must be instance of {}".format(ResponseBuilder.__name__)
+            )
 
         if self._db is None:
             raise AttributeError(
-                "You can not create AutoCrud without an SQLAlchemy instance. "
-                "Please consider to use the init_app method instead"
+                "You can not create {} without an SQLAlchemy instance. "
+                "Please consider to use the init_app method instead".format(
+                    self.__class__.__name__
+                )
             )
 
         set_default_config(self._app)
-        self.response_builder.init_app(self._app, **kwargs)
+        self._response_builder.init_app(self._app)
 
-        self._subdomain = self._app.config['AUTOCRUD_SUBDOMAIN']
-        self._baseurl = self._app.config['AUTOCRUD_BASE_URL']
-        self._api = Blueprint('flask_autocrud', __name__, subdomain=self._subdomain)
+        subdomain = self._app.config['AUTOCRUD_SUBDOMAIN']
+        self._api = Blueprint('flask_autocrud', __name__, subdomain=subdomain)
 
-        if models:
+        if models is not None:
             for m in models:
-                self._register_model(m)
+                if not issubclass(m, (db.Model, Model)):
+                    raise AttributeError(
+                        "'{}' must be both a subclass of {} and of {}".format(
+                            m, db.Model.__name__, Model.__name__
+                        )
+                    )
+                self._register_model(m, **kwargs)
         else:
+            schema = self._app.config['AUTOCRUD_DATABASE_SCHEMA']
             automap_model = automap_base(declarative_base(cls=(db.Model, Model)))
-            automap_model.prepare(self._db.engine, reflect=True, schema=self._schema)
+            automap_model.prepare(self._db.engine, reflect=True, schema=schema)
 
             for model in automap_model.classes:
                 if self._app.config['AUTOCRUD_READ_ONLY']:
@@ -91,7 +108,7 @@ class AutoCrud(object):
                 if not self._app.config['AUTOCRUD_FETCH_ENABLED']:
                     model.__methods__ -= {'FETCH'}
 
-                self._register_model(model)
+                self._register_model(model, **kwargs)
 
         if self._app.config['AUTOCRUD_RESOURCES_URL_ENABLED']:
             self._register_resources_route()
@@ -102,21 +119,27 @@ class AutoCrud(object):
             app.extensions = dict()
         app.extensions['autocrud'] = self
 
-    def _register_model(self, model):
+    def _register_model(self, model, **kwargs):
         """
 
         :param model:
         """
         class_name = model.__name__
-        model.__url__ = "{}/{}".format(self._baseurl, class_name.lower())
+        if model.__url__ is None:
+            model.__url__ = "{}/{}".format(
+                self._app.config['AUTOCRUD_BASE_URL'],
+                class_name.lower()
+            )
+
         view = type(
             class_name + 'Service',
             (Service,), {
                 '_model': model,
                 '_db': self._db,
-                '_response': self.response_builder
+                '_response': self._response_builder,
+                **kwargs
             }
-        ).as_view(class_name.lower())
+        ).as_view(class_name)
 
         def add_route(url='', methods=None, **kwargs):
             self._api.add_url_rule(
@@ -139,21 +162,23 @@ class AutoCrud(object):
         if 'FETCH' in model.__methods__:
             add_route(methods=['FETCH'])
 
-        pks = list(model().__table__.primary_key.columns)
-        pk_type = pks[0].type.python_type.__name__ if len(pks) > 0 else 'string'
+        self._models[model.__name__] = model
+        pk = model.columns().get(model.primary_key_field())
+        pk_type = pk.type.python_type.__name__
         add_route('/<{}:{}>'.format(pk_type, 'resource_id'), model.__methods__ - {'POST', 'FETCH'})
         add_route('/<{}:{}>/<path:subresource>'.format(pk_type, 'resource_id'), {'GET'})
-        self.models[model.__name__] = model
 
     def _register_resources_route(self):
         """
 
         :return:
         """
-        @self._api.route(self._baseurl + self._app.config['AUTOCRUD_RESOURCES_URL'])
+        url = self._app.config['AUTOCRUD_BASE_URL'] + self._app.config['AUTOCRUD_RESOURCES_URL']
+
+        @self._api.route(url)
         @self.response_builder.on_accept()
         def index():
-            routes = {}
-            for name, cls in self.models.items():
-                routes[name] = "{}{{/{}}}".format(cls.__url__, cls.primary_key_field())
-            return routes
+            return {
+                res: "{}{{/{}}}".format(cls.__url__, cls.primary_key_field())
+                for res, cls in self._models.items()
+            }

@@ -4,6 +4,8 @@ from sqlalchemy.orm import contains_eager
 import sqlalchemy_filters as sqlaf
 from sqlalchemy_filters import exceptions
 
+from .config import Syntax
+from .config import Fields
 from .config import default_syntax
 from .config import default_arguments
 
@@ -17,8 +19,38 @@ class Qs2Sqla:
         :param arguments:
         """
         self._model = model
-        self.syntax = syntax or default_syntax
-        self.arguments = arguments or default_arguments
+        self._syntax = syntax or default_syntax
+        self._arguments = arguments or default_arguments
+
+        if self._syntax and not isinstance(self._syntax, Syntax):
+            raise AttributeError(
+                "'{}' must be an instance of {}".format(
+                    self._syntax.__name__, Syntax.__name__
+                )
+            )
+
+        if self._arguments and not issubclass(self._arguments, Fields):
+            raise AttributeError(
+                "'{}' must be a subclass of {}".format(
+                    self._arguments.__name__, Fields.__name__
+                )
+            )
+
+    @property
+    def syntax(self):
+        """
+
+        :return:
+        """
+        return self._syntax
+
+    @property
+    def arguments(self):
+        """
+
+        :return:
+        """
+        return self._arguments
 
     def clear_empty(self, l, sep=None):
         """
@@ -27,7 +59,7 @@ class Qs2Sqla:
         :param sep:
         :return:
         """
-        return [i for i in l.split(sep or self.syntax.SEP) if i != ""]
+        return [i for i in l.split(sep or self._syntax.SEP) if i != ""]
 
     def clear_escape(self, i, escape=None):
         """
@@ -36,7 +68,7 @@ class Qs2Sqla:
         :param escape:
         :return:
         """
-        esc = escape or self.syntax.ESCAPE
+        esc = escape or self._syntax.ESCAPE
         return i[len(esc):] if i.startswith(esc) else i
 
     def get_pagination(self, conf, max_limit):
@@ -58,13 +90,13 @@ class Qs2Sqla:
 
         invalid = []
         max_limit = valid_number(max_limit)
-        page = valid_number(conf.get(self.arguments.scalar.page))
-        limit = valid_number(conf.get(self.arguments.scalar.limit))
+        page = valid_number(conf.get(self._arguments.scalar.page))
+        limit = valid_number(conf.get(self._arguments.scalar.limit))
 
         if page is False:
-            invalid.append(self.arguments.scalar.page)
+            invalid.append(self._arguments.scalar.page)
         if limit is False:
-            invalid.append(self.arguments.scalar.limit)
+            invalid.append(self._arguments.scalar.limit)
         if max_limit is False:
             invalid.append('invalid max_limit: {}'.format(max_limit))
 
@@ -91,30 +123,30 @@ class Qs2Sqla:
             """
             return dict(model=self._model.__name__, field=f, op=op, value=value)
 
-        if v.startswith(self.syntax.GT):
-            return to_dict('>', self.clear_escape(v, escape=self.syntax.GT))
-        if v.startswith(self.syntax.LT):
-            return to_dict('<', self.clear_escape(v, escape=self.syntax.LT))
-        if v.startswith(self.syntax.GTE):
-            return to_dict('>=', self.clear_escape(v, escape=self.syntax.GTE))
-        if v.startswith(self.syntax.LTE):
-            return to_dict('<=', self.clear_escape(v, escape=self.syntax.LTE))
-        if v.startswith(self.syntax.NOT_LIKE):
-            return to_dict('not_like', self.clear_escape(v, escape=self.syntax.NOT_LIKE))
-        if v.startswith(self.syntax.LIKE):
-            return to_dict('like', self.clear_escape(v, escape=self.syntax.LIKE))
+        if v.startswith(self._syntax.GT):
+            return to_dict('>', self.clear_escape(v, escape=self._syntax.GT))
+        if v.startswith(self._syntax.LT):
+            return to_dict('<', self.clear_escape(v, escape=self._syntax.LT))
+        if v.startswith(self._syntax.GTE):
+            return to_dict('>=', self.clear_escape(v, escape=self._syntax.GTE))
+        if v.startswith(self._syntax.LTE):
+            return to_dict('<=', self.clear_escape(v, escape=self._syntax.LTE))
+        if v.startswith(self._syntax.NOT_LIKE):
+            return to_dict('not_like', self.clear_escape(v, escape=self._syntax.NOT_LIKE))
+        if v.startswith(self._syntax.LIKE):
+            return to_dict('like', self.clear_escape(v, escape=self._syntax.LIKE))
 
-        if v.startswith(self.syntax.RNS) and v.endswith(self.syntax.RNE):
-            down, up = v[len(self.syntax.RNS):-len(self.syntax.RNE)].split(self.syntax.SEP, 1)
+        if v.startswith(self._syntax.RNS) and v.endswith(self._syntax.RNE):
+            down, up = v[len(self._syntax.RNS):-len(self._syntax.RNE)].split(self._syntax.SEP, 1)
             return {'and': [to_dict('>=', down), to_dict('<=', up)]}
 
-        if v.startswith(self.syntax.NOT_RNS) and v.endswith(self.syntax.NOT_RNE):
-            down, up = v[len(self.syntax.NOT_RNS):-len(self.syntax.NOT_RNE)].split(self.syntax.SEP, 1)
+        if v.startswith(self._syntax.NOT_RNS) and v.endswith(self._syntax.NOT_RNE):
+            down, up = v[len(self._syntax.NOT_RNS):-len(self._syntax.NOT_RNE)].split(self._syntax.SEP, 1)
             return {'or': [to_dict('<', down), to_dict('>', up)]}
 
         item = self.clear_empty(v)
-        if item[0].startswith(self.syntax.NOT):
-            item[0] = self.clear_escape(item[0], escape=self.syntax.NOT)
+        if item[0].startswith(self._syntax.NOT):
+            item[0] = self.clear_escape(item[0], escape=self._syntax.NOT)
             return to_dict('not_in', item)
         else:
             item[0] = self.clear_escape(item[0])
@@ -130,20 +162,20 @@ class Qs2Sqla:
         resp = dict(fields=[], filters=[], sorting=[])
 
         for k, v in args.items():
-            if k in self.arguments.scalar:
+            if k in self._arguments.scalar:
                 continue
 
-            if k == self.arguments.vector.sort:
+            if k == self._arguments.vector.sort:
                 for item in self.clear_empty(v):
-                    d = 'desc' if item.startswith(self.syntax.REVERSE) else 'asc'
-                    item = self.clear_escape(item, escape=self.syntax.REVERSE)
+                    d = 'desc' if item.startswith(self._syntax.REVERSE) else 'asc'
+                    item = self.clear_escape(item, escape=self._syntax.REVERSE)
 
                     if item in self._model.columns().keys():
                         resp['sorting'].append(dict(field=item, direction=d))
                     else:
                         invalid.append(item)
 
-            elif k == self.arguments.vector.fields:
+            elif k == self._arguments.vector.fields:
                 for item in self.clear_empty(v):
                     if item in self._model.columns().keys():
                         resp['fields'].append(item)
@@ -186,7 +218,7 @@ class Qs2Sqla:
             if instance is not None:
                 _columns = related.get(k)
                 try:
-                    if len(_columns) > 0 and _columns[0] != self.syntax.ALL:
+                    if len(_columns) > 0 and _columns[0] != self._syntax.ALL:
                         _invalid = list(set(related.get(k)) - set(columns))
                         if len(_invalid) > 0:
                             _columns = _invalid

@@ -19,6 +19,8 @@ class Service(MethodView):
     _db = None
     _model = None
     _response = None
+    syntax = None
+    arguments = None
 
     def delete(self, resource_id):
         """
@@ -140,9 +142,14 @@ class Service(MethodView):
         related = {}
         model = self._model
         _, builder = self._response.get_mimetype_accept()
-        filter_by_id = [Qs2Sqla(model).get_filter(model.primary_key_field(), str(resource_id))]
 
-        if request.path.endswith(cap.config.get('AUTOCRUD_METADATA_URL')):
+        filter_by_id = [
+            Qs2Sqla(model, self.syntax, self.arguments).get_filter(
+                model.primary_key_field(), str(resource_id)
+            )
+        ]
+
+        if request.path.endswith(cap.config['AUTOCRUD_METADATA_URL']):
             return self._response.build_response(builder, model.description())
 
         if subresource is not None:
@@ -152,7 +159,7 @@ class Service(MethodView):
                     builder, (dict(message='Not Found'), status.NOT_FOUND)
                 )
 
-        qsqla = Qs2Sqla(model)
+        qsqla = Qs2Sqla(model, self.syntax, self.arguments)
         if qsqla.arguments.scalar.extended in request.args:
             for k, v in model.related().items():
                 if isinstance(v['instance'].impl, ScalarObjectAttributeImpl):
@@ -172,7 +179,7 @@ class Service(MethodView):
                     builder, (res.to_dict(links=True), self._link_header(res))
                 )
 
-        if cap.config.get('AUTOCRUD_QUERY_STRING_FILTERS_ENABLED') is True:
+        if cap.config['AUTOCRUD_QUERY_STRING_FILTERS_ENABLED'] is True:
             data, error = qsqla.parse(request.args)
         else:
             data, error = {}, []
@@ -210,12 +217,12 @@ class Service(MethodView):
         :param error:
         :return:
         """
-        qsqla = Qs2Sqla(model)
+        qsqla = Qs2Sqla(model, self.syntax, self.arguments)
         invalid = error or []
 
         page, limit, error = qsqla.get_pagination(
             request.args,
-            cap.config.get('AUTOCRUD_MAX_QUERY_LIMIT')
+            cap.config['AUTOCRUD_MAX_QUERY_LIMIT']
         )
         invalid += error
 
@@ -231,7 +238,7 @@ class Service(MethodView):
         result = query.all()
 
         response = []
-        links_enabled = cap.config.get('AUTOCRUD_EXPORT_ENABLED') is False \
+        links_enabled = cap.config['AUTOCRUD_EXPORT_ENABLED'] is False \
             or qsqla.arguments.scalar.export not in request.args
 
         for r in result:
@@ -240,7 +247,7 @@ class Service(MethodView):
             else:
                 response.append(r.to_dict(links=links_enabled))
 
-        if cap.config.get('AUTOCRUD_EXPORT_ENABLED') is True:
+        if cap.config['AUTOCRUD_EXPORT_ENABLED'] is True:
             if qsqla.arguments.scalar.export in request.args:
                 filename = request.args.get(qsqla.arguments.scalar.export) or "{}{}{}".format(
                     self._model.__name__,
@@ -336,5 +343,5 @@ class Service(MethodView):
             'Pagination-Count': total_results,
             'Pagination-Page': page_number,
             'Pagination-Num-Pages': num_pages,
-            'Pagination-Limit': page_size
+            'Pagination-Page-Size': page_size
         }, code

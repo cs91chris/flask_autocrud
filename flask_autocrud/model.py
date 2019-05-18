@@ -132,7 +132,6 @@ class Model(object):
             return cls.__rels__
 
         for k in cls.__rels__.keys():
-            print(k)
             if k == name:
                 return cls.__rels__.get(k).get('instance'),\
                        cls.__rels__.get(k).get('columns')
@@ -226,7 +225,8 @@ class Model(object):
             if not r.uselist:
                 instance = getattr(self, r.key)
                 if instance:
-                    link_dict[r.key] = instance.resource_uri()
+                    key = r.argument.__name__
+                    link_dict[key] = instance.resource_uri()
             elif isinstance(r.argument, Mapper):
                 key = r.argument.class_.__name__
                 link_dict[key] = "{}{}".format(self.resource_uri(), r.argument.class_.__url__)
