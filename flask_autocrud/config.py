@@ -42,6 +42,7 @@ def set_default_config(app):
     app.config.setdefault('AUTOCRUD_FETCH_ENABLED', True)
     app.config.setdefault('AUTOCRUD_EXPORT_ENABLED', True)
     app.config.setdefault('AUTOCRUD_QUERY_STRING_FILTERS_ENABLED', True)
+    app.config.setdefault('AUTOCRUD_CONDITIONAL_REQUEST_ENABLED', True)
 
 
 Syntax = namedtuple(

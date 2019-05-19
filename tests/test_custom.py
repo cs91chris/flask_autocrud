@@ -58,6 +58,7 @@ def app():
             )
 
     _app = Flask(__name__)
+    _app.config['AUTOCRUD_CONDITIONAL_REQUEST_ENABLED'] = False
     _app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite:///../flask_autocrud/examples/db.sqlite3'
     db.init_app(_app)
     _app.response_class = Response
@@ -87,6 +88,7 @@ def test_resource_crud(client):
     )
     assert res.status_code == 201
     assert res.headers.get('Content-Type') == 'application/json'
+    assert res.headers.get('ETag') is None
 
     data = res.get_json()
     id = data.get('id')
@@ -103,6 +105,7 @@ def test_resource_crud(client):
 
     res = client.get('/artists/{}'.format(id))
     assert res.status_code == 200
+    assert res.headers.get('ETag') is None
     assert res.headers.get('Content-Type') == 'application/json'
     assert res.headers.get('Link') == "</artists/{id}>; rel=self, </artists/{id}/myalbum>; rel=related".format(id=id)
 
@@ -116,6 +119,7 @@ def test_resource_crud(client):
         headers={'Content-Type': 'application/json'}
     )
     assert res.status_code == 200
+    assert res.headers.get('ETag') is None
 
     res = client.patch(
         '/artists/{}'.format(id),
@@ -123,6 +127,7 @@ def test_resource_crud(client):
         headers={'Content-Type': 'application/json'}
     )
     assert res.status_code == 200
+    assert res.headers.get('ETag') is None
 
     res = client.delete('/artists/{}'.format(id))
     assert res.status_code == 204

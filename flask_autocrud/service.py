@@ -1,8 +1,11 @@
+import flask
 import colander
 
 from flask import request
 from flask import current_app as cap
 from flask.views import MethodView
+
+from werkzeug.http import generate_etag
 
 import sqlalchemy_filters as sqlaf
 from sqlalchemy.exc import IntegrityError
@@ -43,67 +46,51 @@ class Service(MethodView):
                     status.NOT_FOUND
                 )
 
+            self._check_etag(resource)
             session.delete(resource)
             session.commit()
         return _delete()
-
-    def patch(self, resource_id):
-        """
-
-        :param resource_id:
-        :return:
-        """
-        @self._response.on_accept()
-        def _patch():
-            model = self._model
-            data = request.get_json() or {}
-            _, unknown = model.validate(data)
-
-            if unknown:
-                return dict(unknown=unknown), status.UNPROCESSABLE_ENTITY
-
-            resource = model.query.get(resource_id)
-            if not resource:
-                return dict(message='Not Found'), status.NOT_FOUND
-
-            res = self._merge_resource(resource, data)
-            return res, self._link_header(resource)
-        return _patch()
 
     def post(self):
         """
 
         :return:
         """
-        @self._response.on_accept()
-        def _post():
-            model = self._model
-            session = self._db.session()
-            data = request.get_json()
+        model = self._model
+        _, builder = self._response.get_mimetype_accept()
+        data = request.get_json()
 
-            if not data:
-                return dict(message='Bad Request'), status.BAD_REQUEST
+        if not data:
+            return self._response.build_response(
+                builder, (dict(message='Bad Request'), status.BAD_REQUEST)
+            )
 
-            missing, unknown = model.validate(data)
-            if unknown or missing:
-                return dict(
+        missing, unknown = model.validate(data)
+        if unknown or missing:
+            return self._response.build_response(
+                builder, (dict(
                     unknown=unknown or [],
                     missing=missing or []
-                ), status.UNPROCESSABLE_ENTITY
+                ), status.UNPROCESSABLE_ENTITY)
+            )
 
-            resource = model.query.filter_by(**data).first()
+        resource = model.query.filter_by(**data).first()
 
-            try:
-                if resource:
-                    raise IntegrityError(statement=None, params=None, orig=None)
+        try:
+            if resource:
+                raise IntegrityError(statement=None, params=None, orig=None)
 
-                resource = model(**data)
-                res = self._add_resource(resource)
-            except IntegrityError:
-                session.rollback()
-                return dict(message='Conflict'), status.CONFLICT
-            return res, self._location_header(resource), status.CREATED
-        return _post()
+            resource = model(**data)
+            res = self._add_resource(resource)
+        except IntegrityError:
+            self._db.session().rollback()
+            return self._response.build_response(
+                builder, (dict(message='Conflict'), status.CONFLICT)
+            )
+
+        return self._response_with_etag(
+            builder, (res, status.CREATED, self._location_header(resource)), res
+        )
 
     def put(self, resource_id):
         """
@@ -111,24 +98,57 @@ class Service(MethodView):
         :param resource_id:
         :return:
         """
-        @self._response.on_accept()
-        def _put():
-            model = self._model
-            data = request.get_json() or {}
-            _, unknown = model.validate(data)
+        model = self._model
+        _, builder = self._response.get_mimetype_accept()
+        data = request.get_json() or {}
+        _, unknown = model.validate(data)
 
-            if unknown:
-                return dict(unknown=unknown), status.UNPROCESSABLE_ENTITY
+        if unknown:
+            return self._response.build_response(
+                builder, (dict(unknown=unknown), status.UNPROCESSABLE_ENTITY)
+            )
 
-            resource = model.query.get(resource_id)
-            if resource:
-                res = self._merge_resource(resource, data)
-                return res, self._link_header(resource)
+        resource = model.query.get(resource_id)
+        if resource:
+            self._check_etag(resource)
+            res = self._merge_resource(resource, data)
+            return self._response_with_etag(
+                builder, (res, self._link_header(resource)), res
+            )
 
-            resource = model(**data)
-            res = self._add_resource(resource)
-            return res, self._location_header(resource), status.CREATED
-        return _put()
+        resource = model(**data)
+        res = self._add_resource(resource)
+        return self._response_with_etag(
+            builder, (res, self._location_header(resource), status.CREATED), res
+        )
+
+    def patch(self, resource_id):
+        """
+
+        :param resource_id:
+        :return:
+        """
+        model = self._model
+        _, builder = self._response.get_mimetype_accept()
+        data = request.get_json() or {}
+        _, unknown = model.validate(data)
+
+        if unknown:
+            return self._response.build_response(
+                builder, (dict(unknown=unknown), status.UNPROCESSABLE_ENTITY)
+            )
+
+        resource = model.query.get(resource_id)
+        if not resource:
+            return self._response.build_response(
+                builder, (dict(message='Not Found'), status.NOT_FOUND)
+            )
+
+        self._check_etag(resource)
+        res = self._merge_resource(resource, data)
+        return self._response_with_etag(
+            builder, (res, self._link_header(resource)), res
+        )
 
     def get(self, resource_id=None, subresource=None):
         """
@@ -173,8 +193,10 @@ class Service(MethodView):
                         builder, (dict(message='Not Found'), status.NOT_FOUND)
                     )
 
-                return self._response.build_response(
-                    builder, (res.to_dict(links=True), self._link_header(res))
+                self._check_etag(res)
+
+                return self._response_with_etag(
+                    builder, (res.to_dict(links=True), self._link_header(res)), res
                 )
 
         if cap.config['AUTOCRUD_QUERY_STRING_FILTERS_ENABLED'] is True:
@@ -259,9 +281,27 @@ class Service(MethodView):
             '_meta': self._pagination_meta(pagination)
         }
 
-        return self._response.build_response(
-            builder, (response, *self._pagination_headers(pagination))
+        etag = self._compute_etag(response)
+        self._check_etag(etag)
+
+        return self._response_with_etag(
+            builder, (response, *self._pagination_headers(pagination)), etag
         )
+
+    def _response_with_etag(self, builder, data, etag):
+        """
+
+        :param builder:
+        :param data:
+        :param etag:
+        :return:
+        """
+        response = self._response.build_response(builder, data)
+
+        if cap.config['AUTOCRUD_CONDITIONAL_REQUEST_ENABLED'] is True:
+            response.set_etag(etag if isinstance(etag, str) else self._compute_etag(etag))
+
+        return response
 
     @classmethod
     def _add_resource(cls, resource):
@@ -380,3 +420,37 @@ class Service(MethodView):
         """
         location = resource.links()
         return dict(Location=location.get('self'))
+
+    @classmethod
+    def _compute_etag(cls, data):
+        """
+
+        :param data:
+        :return:
+        """
+        if cap.config['AUTOCRUD_CONDITIONAL_REQUEST_ENABLED'] is True:
+            if not isinstance(data, str):
+                data = str(data if isinstance(data, (dict, list)) else data.to_dict(True))
+            return generate_etag(data.encode('utf-8'))
+        return ""
+
+    @classmethod
+    def _check_etag(cls, data):
+        """
+
+        :param data:
+        :return:
+        """
+        if cap.config['AUTOCRUD_CONDITIONAL_REQUEST_ENABLED'] is True:
+            etag = data if isinstance(data, str) else cls._compute_etag(data)
+            match = request.if_match
+            none_match = request.if_none_match
+
+            if request.method in ('GET', 'FETCH'):
+                if none_match and etag in none_match:
+                    flask.abort(flask.Response(status=304))
+            elif request.method in ('PUT', 'PATCH', 'DELETE'):
+                if not match:
+                    flask.abort(flask.Response(status=428))
+                if etag not in match:
+                    flask.abort(flask.Response(status=412))

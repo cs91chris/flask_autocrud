@@ -107,6 +107,8 @@ def test_resource_crud(client):
     data = res.get_json()
     id = data.get('ArtistId')
 
+    etag = res.headers.get('ETag')
+    assert etag is not None
     assert res.headers.get('Location').endswith('/artist/{}'.format(id))
 
     res = client.post(
@@ -118,7 +120,10 @@ def test_resource_crud(client):
     assert res.headers.get('Content-Type') == 'application/xml; charset=utf-8'
 
     res = client.get('/artist/{}'.format(id))
+    etag = res.headers.get('ETag')
+
     assert res.status_code == 200
+    assert etag is not None
     assert res.headers.get('Content-Type') == 'application/json'
     assert res.headers.get('Link') == "</artist/{id}>; rel=self, </artist/{id}/album>; rel=related".format(id=id)
 
@@ -126,21 +131,36 @@ def test_resource_crud(client):
     returned_id = data.get('ArtistId')
     assert returned_id == id
 
+    res = client.get('/artist/{}'.format(id), headers={'If-None-Match': etag})
+    assert res.status_code == 304
+
     res = client.put(
         '/artist/{}'.format(id),
         data=json.dumps({'Name': 'pippo2'}),
-        headers={'Content-Type': 'application/json'}
+        headers={'Content-Type': 'application/json', 'If-Match': etag}
     )
+    etag = res.headers.get('ETag')
     assert res.status_code == 200
+    assert etag is not None
 
     res = client.patch(
         '/artist/{}'.format(id),
         data=json.dumps({'Name': 'pippo3'}),
-        headers={'Content-Type': 'application/json'}
+        headers={'Content-Type': 'application/json', 'If-Match': etag}
     )
     assert res.status_code == 200
 
+    res = client.get('/artist/{}'.format(id), headers={'If-None-Match': etag})
+    assert res.status_code == 200
+
+    etag = res.headers.get('ETag')
     res = client.delete('/artist/{}'.format(id))
+    assert res.status_code == 428
+
+    res = client.delete('/artist/{}'.format(id), headers={'If-Match': 'fake_etag'})
+    assert res.status_code == 412
+
+    res = client.delete('/artist/{}'.format(id), headers={'If-Match': etag})
     assert res.status_code == 204
 
     res = client.delete('/artist/1000000000')
@@ -371,3 +391,14 @@ def test_subresource(client):
         "Genre",
         "MediaType"
     ))
+
+
+def test_check_etag_list(client):
+    res = client.get('/album/5/track?_extended')
+
+    etag = res.headers.get('ETag')
+    assert res.status_code == 200
+    assert etag is not None
+
+    res = client.get('/album/5/track?_extended', headers={'If-None-Match': etag})
+    assert res.status_code == 304
