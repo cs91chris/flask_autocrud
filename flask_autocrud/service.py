@@ -56,7 +56,6 @@ class Service(MethodView):
         @self._response.on_accept()
         def _patch():
             model = self._model
-            session = self._db.session()
             data = request.get_json() or {}
             _, unknown = model.validate(data)
 
@@ -67,7 +66,7 @@ class Service(MethodView):
             if not resource:
                 return dict(message='Not Found'), status.NOT_FOUND
 
-            res = self._merge_resource(session, resource, data)
+            res = self._merge_resource(resource, data)
             return res, self._link_header(resource)
         return _patch()
 
@@ -99,7 +98,7 @@ class Service(MethodView):
                     raise IntegrityError(statement=None, params=None, orig=None)
 
                 resource = model(**data)
-                res = self._add_resource(session, resource)
+                res = self._add_resource(resource)
             except IntegrityError:
                 session.rollback()
                 return dict(message='Conflict'), status.CONFLICT
@@ -115,7 +114,6 @@ class Service(MethodView):
         @self._response.on_accept()
         def _put():
             model = self._model
-            session = self._db.session()
             data = request.get_json() or {}
             _, unknown = model.validate(data)
 
@@ -124,11 +122,11 @@ class Service(MethodView):
 
             resource = model.query.get(resource_id)
             if resource:
-                res = self._merge_resource(session, resource, data)
+                res = self._merge_resource(resource, data)
                 return res, self._link_header(resource)
 
             resource = model(**data)
-            res = self._add_resource(session, resource)
+            res = self._add_resource(resource)
             return res, self._location_header(resource), status.CREATED
         return _put()
 
@@ -256,33 +254,38 @@ class Service(MethodView):
                 )
                 return self._response.csv(response, filename=filename)
 
+        response = {
+            model.__name__ + model.collection_suffix: response,
+            '_meta': self._pagination_meta(pagination)
+        }
+
         return self._response.build_response(
             builder, (response, *self._pagination_headers(pagination))
         )
 
-    @staticmethod
-    def _add_resource(session, resource):
+    @classmethod
+    def _add_resource(cls, resource):
         """
 
-        :param session:
         :param resource:
         :return:
         """
+        session = cls._db.session
         session.add(resource)
         session.flush()
         res = resource.to_dict(links=True)
         session.commit()
         return res
 
-    @staticmethod
-    def _merge_resource(session, resource, data):
+    @classmethod
+    def _merge_resource(cls, resource, data):
         """
 
-        :param session:
         :param resource:
         :param data:
         :return:
         """
+        session = cls._db.session
         session.merge(resource)
         resource.update(data)
         session.flush()
@@ -290,34 +293,32 @@ class Service(MethodView):
         session.commit()
         return res
 
-    @staticmethod
-    def _link_header(resource):
+    @classmethod
+    def _pagination_meta(cls, pagination):
         """
 
-        :param resource:
+        :param pagination:
         :return:
         """
-        links = resource.links()
-        link_string = '<{}>; rel=self'.format(links.get('self'))
 
-        for k, l in links.items():
-            if k != 'self':
-                link_string += ', <{}>; rel=related'.format(l)
+        args = Qs2Sqla(cls._model).arguments.scalar
 
-        return dict(Link=link_string)
+        page_number = pagination.page_number
+        num_pages = pagination.num_pages
+        page_size = pagination.page_size
 
-    @staticmethod
-    def _location_header(resource):
-        """
+        def get_link(p):
+            return "{}?{}={}&{}={}".format(request.path, args.page, p, args.limit, page_size)
 
-        :param resource:
-        :return:
-        """
-        location = resource.links()
-        return dict(Location=location.get('self'))
+        return dict(
+            first=get_link(1) if page_number > 1 else None,
+            last=get_link(num_pages) if page_number != num_pages else None,
+            next=get_link(page_number + 1) if page_number != num_pages else None,
+            prev=get_link(page_number - 1) if page_number != 1 else None
+        )
 
-    @staticmethod
-    def _pagination_headers(pagination):
+    @classmethod
+    def _pagination_headers(cls, pagination):
         """
 
         :param pagination:
@@ -343,5 +344,39 @@ class Service(MethodView):
             'Pagination-Count': total_results,
             'Pagination-Page': page_number,
             'Pagination-Num-Pages': num_pages,
-            'Pagination-Page-Size': page_size
+            'Pagination-Page-Size': page_size,
+            **(cls._link_header(None, **cls._pagination_meta(pagination)) or {})
         }, code
+
+    @staticmethod
+    def _link_header(resource=None, **kwargs):
+        """
+
+        :param resource:
+        :return:
+        """
+        links = []
+
+        if resource is not None:
+            res_links = resource.links()
+            links.append('<{}>; rel=self'.format(res_links.get('self')))
+
+            for k, l in res_links.items():
+                if k != 'self':
+                    links.append('<{}>; rel=related'.format(l))
+
+        for k, l in kwargs.items():
+            if l is not None:
+                links.append('<{}>; rel={}'.format(l, k))
+
+        return dict(Link=", ".join(links)) if len(links) else {}
+
+    @staticmethod
+    def _location_header(resource):
+        """
+
+        :param resource:
+        :return:
+        """
+        location = resource.links()
+        return dict(Location=location.get('self'))

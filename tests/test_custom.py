@@ -88,7 +88,7 @@ def test_resource_crud(client):
     assert res.status_code == 201
     assert res.headers.get('Content-Type') == 'application/json'
 
-    data = json.loads(res.data)
+    data = res.get_json()
     id = data.get('id')
 
     assert res.headers.get('Location').endswith('/artists/{}'.format(id))
@@ -106,7 +106,7 @@ def test_resource_crud(client):
     assert res.headers.get('Content-Type') == 'application/json'
     assert res.headers.get('Link') == "</artists/{id}>; rel=self, </artists/{id}/myalbum>; rel=related".format(id=id)
 
-    data = json.loads(res.data)
+    data = res.get_json()
     returned_id = data.get('id')
     assert returned_id == id
 
@@ -133,7 +133,7 @@ def test_resource_meta(client):
     assert res.status_code == 200
     assert res.headers.get('Content-Type') == 'application/json'
 
-    data = json.loads(res.data)
+    data = res.get_json()
     assert all(i in data.keys() for i in (
         'name',
         'description',
@@ -148,7 +148,7 @@ def test_hateoas(client):
     res = client.get('/artists/1')
     assert res.status_code == 200
 
-    data = json.loads(res.data)
+    data = res.get_json()
     assert '_links' in data.keys()
     assert data['_links'].get('self') == '/artists/1'
 
@@ -157,7 +157,7 @@ def test_extended(client):
     res = client.get('/myalbum/5?_extended')
     assert res.status_code == 200
 
-    data = json.loads(res.data)
+    data = res.get_json()
     assert data['id'] == 5
     assert isinstance(data["artists"], dict)
 
@@ -166,7 +166,7 @@ def test_extended_list(client):
     res = client.get('/myalbum?_extended')
     assert res.status_code == 200
 
-    data = json.loads(res.data)[0]
+    data = res.get_json()['albumsList'][0]
     assert isinstance(data["artists"], dict)
     assert data.get('_links') is not None
 
@@ -175,13 +175,13 @@ def test_fields(client):
     res = client.get('/artists')
     assert res.status_code == 200
 
-    data = json.loads(res.data)
+    data = res.get_json()['artistsList']
     assert len(data[0].keys()) == 3
 
     res = client.get('/artists?_fields=id')
     assert res.status_code == 200
 
-    data = json.loads(res.data)
+    data = res.get_json()['artistsList']
     assert len(data[0].keys()) == 2
     assert all(e in data[0].keys() for e in (
         "id",
@@ -193,13 +193,13 @@ def test_sorting(client):
     res = client.get('/artists?_sort=id')
     assert res.status_code == 200
 
-    data = json.loads(res.data)
+    data = res.get_json()['artistsList']
     first_id = data[0].get('id')
 
     res = client.get('/artists?_sort=-id')
     assert res.status_code == 200
 
-    data = json.loads(res.data)
+    data = res.get_json()['artistsList']
     last_id = data[0].get('id')
     assert last_id != first_id
 
@@ -208,7 +208,7 @@ def test_range(client):
     res = client.get('/artists?id=(1;3)')
     assert res.status_code == 200
 
-    data = json.loads(res.data)
+    data = res.get_json()['artistsList']
     assert len(data) == 3
     assert data[0].get('id') == 1
     assert data[1].get('id') == 2
@@ -219,7 +219,7 @@ def test_null(client):
     res = client.get('/artists?id=null')
     assert res.status_code == 200
 
-    data = json.loads(res.data)
+    data = res.get_json()['artistsList']
     assert len(data) == 0
 
 
@@ -231,7 +231,7 @@ def test_related(client):
     )
     assert res.status_code == 200
 
-    data = json.loads(res.data)
+    data = res.get_json()['albumsList']
     assert data[0].get('artists') is not None
 
 
@@ -252,7 +252,7 @@ def test_filter(client):
     )
     assert res.status_code == 200
 
-    data = json.loads(res.data)
+    data = res.get_json()['artistsList']
     assert len(data) == 1
     assert data[0].get('id') == 1
 
@@ -261,7 +261,7 @@ def test_subresource(client):
     res = client.get('/artists/1/myalbum?_extended')
     assert res.status_code == 200
 
-    data = json.loads(res.data)[0]
+    data = res.get_json()['albumsList'][0]
     assert data['artist_id'] == 1
     assert all(e in data.keys() for e in (
         "id",
@@ -273,12 +273,12 @@ def test_hidden_field(client):
     res = client.get('/myalbum/5')
     assert res.status_code == 200
 
-    data = json.loads(res.data)
+    data = res.get_json()
     assert data['id'] == 5
     assert len(data.keys()) == 3
 
     res = client.get('/myalbum/meta')
     assert res.status_code == 200
 
-    data = json.loads(res.data)
+    data = res.get_json()
     assert len(data['fields']) == 2

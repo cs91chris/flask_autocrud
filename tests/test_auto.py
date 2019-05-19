@@ -56,6 +56,16 @@ def assert_pagination(res, code, page, limit):
     assert res.headers.get('Pagination-Page-Size') == limit
     assert res.headers.get('Pagination-Count') is not None
     assert res.headers.get('Pagination-Num-Pages') is not None
+    assert res.headers.get('Link') != ''
+
+    data = res.get_json()
+    assert '_meta' in data
+    assert all(e in data['_meta'].keys() for e in (
+        "first",
+        "last",
+        "next",
+        "prev"
+    ))
 
 
 def assert_export(res, filename):
@@ -94,7 +104,7 @@ def test_resource_crud(client):
     assert res.status_code == 201
     assert res.headers.get('Content-Type') == 'application/json'
 
-    data = json.loads(res.data)
+    data = res.get_json()
     id = data.get('ArtistId')
 
     assert res.headers.get('Location').endswith('/artist/{}'.format(id))
@@ -112,7 +122,7 @@ def test_resource_crud(client):
     assert res.headers.get('Content-Type') == 'application/json'
     assert res.headers.get('Link') == "</artist/{id}>; rel=self, </artist/{id}/album>; rel=related".format(id=id)
 
-    data = json.loads(res.data)
+    data = res.get_json()
     returned_id = data.get('ArtistId')
     assert returned_id == id
 
@@ -145,7 +155,7 @@ def test_resource_meta(client):
     assert res.status_code == 200
     assert res.headers.get('Content-Type') == 'application/json'
 
-    data = json.loads(res.data)
+    data = res.get_json()
     assert all(i in data.keys() for i in (
         'name',
         'description',
@@ -164,7 +174,7 @@ def test_hateoas(client):
     res = client.get('/artist/1')
     assert res.status_code == 200
 
-    data = json.loads(res.data)
+    data = res.get_json()
     assert '_links' in data.keys()
     assert data['_links'].get('self') == '/artist/1'
 
@@ -184,7 +194,7 @@ def test_extended(client):
     res = client.get('/track/5?_extended')
     assert res.status_code == 200
 
-    data = json.loads(res.data)
+    data = res.get_json()
     assert data['TrackId'] == 5
     assert all(isinstance(data[e], dict) for e in (
         "Album",
@@ -197,9 +207,10 @@ def test_extended_list(client):
     res = client.get('/track?_extended')
     assert res.status_code == 206
 
-    data = json.loads(res.data)[0]
-    assert data.get('_links') is not None
-    assert all(isinstance(data[e], dict) for e in (
+    tracks = 'TrackList'
+    data = res.get_json()
+    assert data[tracks][0].get('_links') is not None
+    assert all(isinstance(data[tracks][0][e], dict) for e in (
         "Album",
         "Genre",
         "MediaType"
@@ -210,15 +221,16 @@ def test_fields(client):
     res = client.get('/artist')
     assert res.status_code == 200
 
-    data = json.loads(res.data)
-    assert len(data[0].keys()) == 3
+    artists = 'ArtistList'
+    data = res.get_json()
+    assert len(data[artists][0].keys()) == 3
 
     res = client.get('/artist?_fields=ArtistId')
     assert res.status_code == 200
 
-    data = json.loads(res.data)
-    assert len(data[0].keys()) == 2
-    assert all(e in data[0].keys() for e in (
+    data = res.get_json()
+    assert len(data[artists][0].keys()) == 2
+    assert all(e in data[artists][0].keys() for e in (
         "ArtistId",
         "_links"
     ))
@@ -228,14 +240,14 @@ def test_sorting(client):
     res = client.get('/artist?_sort=ArtistId')
     assert res.status_code == 200
 
-    data = json.loads(res.data)
-    first_id = data[0].get('ArtistId')
+    data = res.get_json()
+    first_id = data['ArtistList'][0].get('ArtistId')
 
     res = client.get('/artist?_sort=-ArtistId')
     assert res.status_code == 200
 
-    data = json.loads(res.data)
-    last_id = data[0].get('ArtistId')
+    data = res.get_json()
+    last_id = data['ArtistList'][0].get('ArtistId')
     assert last_id != first_id
 
 
@@ -243,19 +255,20 @@ def test_range(client):
     res = client.get('/artist?ArtistId=(1;3)')
     assert res.status_code == 200
 
-    data = json.loads(res.data)
-    assert len(data) == 3
-    assert data[0].get('ArtistId') == 1
-    assert data[1].get('ArtistId') == 2
-    assert data[2].get('ArtistId') == 3
+    artists = 'ArtistList'
+    data = res.get_json()
+    assert len(data[artists]) == 3
+    assert data[artists][0].get('ArtistId') == 1
+    assert data[artists][1].get('ArtistId') == 2
+    assert data[artists][2].get('ArtistId') == 3
 
 
 def test_null(client):
     res = client.get('/artist?ArtistId=null')
     assert res.status_code == 200
 
-    data = json.loads(res.data)
-    assert len(data) == 0
+    data = res.get_json()
+    assert len(data['ArtistList']) == 0
 
 
 def test_fetch(client):
@@ -278,8 +291,8 @@ def test_related(client):
     )
     assert res.status_code == 200
 
-    data = json.loads(res.data)
-    assert data[0].get('AlbumList') is not None
+    data = res.get_json()
+    assert data['ArtistList'][0].get('AlbumList') is not None
 
 
 def test_filter(client):
@@ -299,9 +312,10 @@ def test_filter(client):
     )
     assert res.status_code == 200
 
-    data = json.loads(res.data)
-    assert len(data) == 1
-    assert data[0].get('ArtistId') == 1
+    artists = 'ArtistList'
+    data = res.get_json()
+    assert len(data[artists]) == 1
+    assert data[artists][0].get('ArtistId') == 1
 
 
 def test_validators(client):
@@ -332,7 +346,7 @@ def test_validators(client):
     )
     assert res.status_code == 422
 
-    data = json.loads(res.data)
+    data = res.get_json()
     mess = data.get('message')
     assert all(e in mess for e in (
         "fields",
@@ -347,7 +361,7 @@ def test_subresource(client):
     res = client.get('/album/5/track?_extended')
     assert res.status_code == 200
 
-    data = json.loads(res.data)[0]
+    data = res.get_json()['TrackList'][0]
     assert data['AlbumId'] == 5
     assert all(e in data.keys() for e in (
         "TrackId",
