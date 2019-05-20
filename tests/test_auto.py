@@ -34,7 +34,7 @@ def app():
             )
 
     _app = Flask(__name__)
-    _app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite:///../flask_autocrud/examples/db.sqlite3'
+    _app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite:///tests/db.sqlite3'
 
     db = SQLAlchemy(_app)
     autocrud = AutoCrud(_app, db)
@@ -271,6 +271,74 @@ def test_sorting(client):
     assert last_id != first_id
 
 
+def test_comparator(client):
+    res = client.get('/invoice?Total=__gt__25')
+    assert res.status_code == 200
+
+    invoices = 'InvoiceList'
+    data = res.get_json()
+    assert len(data[invoices]) == 1
+
+    res = client.get('/invoice?Total=__gte__25')
+    assert res.status_code == 200
+
+    invoices = 'InvoiceList'
+    data = res.get_json()
+    assert len(data[invoices]) == 1
+
+    res = client.get('/artist?ArtistId=__lte__2')
+    assert res.status_code == 200
+
+    artists = 'ArtistList'
+    data = res.get_json()
+    assert len(data[artists]) == 2
+
+    res = client.get('/artist?ArtistId=__lt__2')
+    assert res.status_code == 200
+
+    artists = 'ArtistList'
+    data = res.get_json()
+    assert len(data[artists]) == 1
+    assert data[artists][0].get('ArtistId') == 1
+
+    links = data[artists][0].get('_links')
+    assert links is not None
+    assert links.get('Album') == "/artist/1/album"
+    assert links.get('self') == "/artist/1"
+
+    meta = data['_meta']
+    assert meta is not None
+    assert all(v is None for v in meta.values())
+    assert all(e in meta.keys() for e in (
+        "first",
+        "last",
+        "prev",
+        "next"
+    ))
+
+
+def test_like(client):
+    res = client.get('/album?Title=%...%')
+    assert res.status_code == 200
+
+    albums = 'AlbumList'
+    data = res.get_json()[albums][0]
+    assert data['Title'].startswith('...')
+
+    res = client.get('/album?Title=%%z')
+    assert res.status_code == 200
+
+    data = res.get_json()[albums][0]
+    assert data['Title'].endswith('z')
+
+    res = client.get('/artist?_sort=Name&Name=!%A%')
+    assert res.status_code == 200
+
+    albums = 'ArtistList'
+    data = res.get_json()[albums][0]
+    assert data['Name'].startswith('B')
+
+
 def test_range(client):
     res = client.get('/artist?ArtistId=(1;3)')
     assert res.status_code == 200
@@ -282,6 +350,11 @@ def test_range(client):
     assert data[artists][1].get('ArtistId') == 2
     assert data[artists][2].get('ArtistId') == 3
 
+    res = client.get('/invoice?InvoiceDate=!(2008-01-01;2013-12-20 00:00:00)')
+    assert res.status_code == 200
+    data = res.get_json()
+    assert len(data['InvoiceList']) == 1
+
 
 def test_null(client):
     res = client.get('/artist?ArtistId=null')
@@ -289,6 +362,29 @@ def test_null(client):
 
     data = res.get_json()
     assert len(data['ArtistList']) == 0
+
+    res = client.get('/track?AlbumId=!null')
+    assert res.status_code == 206
+
+    data = res.get_json()
+    meta = data.get('_meta')
+    assert meta['first'] is None
+    assert meta['prev'] is None
+    assert meta['next'] == "/track?_page=2&_limit=1000"
+    assert meta['last'] == "/track?_page=4&_limit=1000"
+
+
+def test_query_string_invalid(client):
+    res = client.get('/invoice?_fields=pippo&_sort=pluto&paperino=1')
+    assert res.status_code == 400
+
+    data = res.get_json()
+    assert 'invalid' in data and len(data['invalid']) == 3
+    assert all(e in data['invalid'] for e in (
+        'pippo',
+        'pluto',
+        'paperino'
+    ))
 
 
 def test_fetch(client):
@@ -347,18 +443,19 @@ def test_validators(client):
                 "Employee": "*",
                 "Invoice": [1, 2, 3]
             },
-            "filters":
+            "filters": [
                 {
-                    "model": "Invoice",
-                    "field": "InvoiceDate",
-                    "op": ">=",
-                    "value": "2010-04-01T00:00:00"
-                },
+                    "mode": "Invoice",
+                    "fiel": "InvoiceDate",
+                    "o": ">=",
+                    "valu": "2010-04-01T00:00:00"
+                }
+            ],
             "sorting": [
                 {
-                    "model": 1,
+                    "mode": 1,
                     "fiel": "Total",
-                    "direction": "asc"
+                    "directio": "asc"
                 }
             ]
         },
@@ -370,10 +467,69 @@ def test_validators(client):
     mess = data.get('message')
     assert all(e in mess for e in (
         "fields",
-        "filters",
         "related",
         "sorting.0.field",
-        "sorting.0.model"
+        "sorting.0.model",
+        "sorting.0.direction",
+        "filters.0.field",
+        "filters.0.model",
+        "filters.0.value"
+    ))
+
+    res = client.fetch(
+        '/customer',
+        data={
+            "filters": 1,
+            "related": 2
+        },
+        headers={'Content-Type': 'application/json'}
+    )
+    assert res.status_code == 422
+
+    data = res.get_json()
+    mess = data.get('message')
+    assert 'filters' in mess
+    assert 'related' in mess
+
+    res = client.fetch(
+        '/artist',
+        data={
+            "filters": [
+                {
+                    "model": "Artist",
+                    "field": "pluto",
+                    "op": "==",
+                    "value": 1
+                }
+            ]
+        },
+        headers={'Content-Type': 'application/json'}
+    )
+    assert res.status_code == 400
+
+    data = res.get_json()
+    assert 'invalid' in data and len(data['invalid']) == 1
+    assert 'pluto' in data['invalid']
+
+    res = client.fetch(
+        '/customer',
+        data={
+            "fields": ["pippo"],
+            "related": {
+                "Employee": ["pluto"],
+                "Invoice": ["paperino"]
+            }
+        },
+        headers={'Content-Type': 'application/json'}
+    )
+    assert res.status_code == 400
+
+    data = res.get_json()
+    assert 'invalid' in data and len(data['invalid']) == 3
+    assert all(e in data['invalid'] for e in (
+        "pippo",
+        "pluto",
+        "paperino"
     ))
 
 

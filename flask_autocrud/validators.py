@@ -1,9 +1,6 @@
 from colander import null
 from colander import String
-from colander import Number
 from colander import Invalid
-from colander import Mapping
-from colander import Sequence
 from colander import SchemaType
 from colander import SchemaNode
 from colander import MappingSchema
@@ -11,20 +8,6 @@ from colander import SequenceSchema
 
 
 class FilterValue(SchemaType):
-    def serialize(self, node, appstruct):
-        if appstruct is null:
-            return null
-
-        impl = Sequence()
-        t = type(appstruct)
-
-        if t == str:
-            impl = String()
-        elif t == int:
-            impl = Number()
-
-        return impl.serialize(node, appstruct)
-
     def deserialize(self, node, cstruct):
         if cstruct is null:
             return null
@@ -37,15 +20,6 @@ class FilterValue(SchemaType):
 
 
 class RelatedSchema(SchemaType):
-    def serialize(self, node, appstruct):
-        if appstruct is null:
-            return null
-
-        if type(appstruct) is not dict:
-            raise Invalid(node, "Invalid types: it must be dict")
-
-        return Mapping().serialize(node, appstruct)
-
     def deserialize(self, node, cstruct):
         if cstruct is null:
             return null

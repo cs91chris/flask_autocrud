@@ -59,7 +59,7 @@ def app():
 
     _app = Flask(__name__)
     _app.config['AUTOCRUD_CONDITIONAL_REQUEST_ENABLED'] = False
-    _app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite:///../flask_autocrud/examples/db.sqlite3'
+    _app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite:///tests/db.sqlite3'
     db.init_app(_app)
     _app.response_class = Response
     _app.test_client_class = TestClient
