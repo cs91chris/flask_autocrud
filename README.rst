@@ -1,11 +1,32 @@
 Flask-AutoCRUD
 ==============
 
-Based on `sandman2 <https://github.com/jeffknupp/sandman2>`__ and
-`sqlalchemy-filters <https://pypi.org/project/sqlalchemy-filters>`__.
+Inspired by `sandman2 <https://github.com/jeffknupp/sandman2>`__,
+based on `sqlalchemy-filters <https://pypi.org/project/sqlalchemy-filters>`__
+and `Flask-ResponseBuilder <https://pypi.org/project/Flask-ResponseBuilder>`__
 
-Automatically generate a RESTful API service for CRUD operation on database.
-If a list of tables or a list of sqlalchemy model is not provided, all tables are affected.
+Automatically generate a RESTful APIs for CRUD operation and advanced search on a database.
+If a list of ``Model`` is not provided, all tables are affected, instead you can customize:
+
+- resource name
+- fields name
+- resource url
+- allowed methods
+- hidden fields
+
+
+Features
+~~~~~~~~~~
+
+- HATEOAS support
+- conditional requests via ETag header
+- full range of CRUD operations
+- filtering, sorting and pagination
+- customizable responses via query string
+- custom FETCH method for advanced search
+- JSON and XML response based on Accept header
+- export to csv available
+- meta resource description
 
 
 Quickstart
@@ -15,7 +36,7 @@ Install ``flask_autocrud`` using ``pip``:
 
 ::
 
-   $ pip install Flask-AutoCRUD
+	$ pip install Flask-AutoCRUD
 
 .. _section-1:
 
@@ -54,28 +75,38 @@ Add filters as query string parameters, they are used in AND. NOTE: At this time
 
 You can use entity fields as parameter with the following placeholders:
 
-    - null value: ``null``
-    - in operator: list separated by ``;``
-    - not operator: ``!`` means: not equal, not null, not in
-    - like operator: ``%`` for example: %%test%, %test% or %%test.
-      NOTE first % are not used in expression, it only indicated that value must be used with like operator.
+- null value: ``null``
+- in operator: list separated by ``;``
+- not operator: ``!`` means: not equal, not null, not in
+- comparators: ``__gt__`` (grater), ``__lt__`` (lesser), ``__gte__`` (grater-equal), ``__lte__`` (lesser-equal)
+- like operator: ``%`` for example: %%test%, %test% or %%test
+  NOTE first % are not used in expression, it only indicated that value must be used with like operator.
+
 
 Other parameters:
 
-    - Use ``_fields`` parameter to get only the fields listes as value, separated by ``;``.
-    - Use ``_limit`` and ``_page`` parameters for pagination.
-    - Sorting is implemented with ``_sort`` parameter. The value is a list of field separated by `;`
-      You can prepend ``-`` to reverse order.
-    - Use ``_export`` parameter to export data into csv format.
-    - Use ``_extended`` in order to fetch data of related resources.
+- Use ``_fields`` parameter to get only the fields listed as value, separated by ``;``.
+- Use ``_limit`` and ``_page`` parameters for pagination.
+- Sorting is implemented with ``_sort`` parameter. The value is a list of field separated by `;`
+  You can prepend ``-`` to reverse order.
+- Use ``_export`` parameter to export data into csv format.
+- Use ``_extended`` in order to fetch data of related resources.
+- Use ``_as_table`` in order to flatten nested dict useful if you want render response as table
 
 Example requests:
 
-http://127.0.0.1:5000/invoice?fields=BillingCountry;Total;InvoiceId&InvoiceId=!355;344&sort=-InvoiceId
+- ``/invoice?InvoiceId=(35;344)``
 
-http://127.0.0.1:5000/invoice?fields=Total;InvoiceId&BillingPostalCode=!null&BillingCountry=%%ermany
+- ``/invoice?Total=__lte__10&sort=Total``
 
-http://127.0.0.1:5000/invoice?fields=Total;InvoiceDate;InvoiceId;CustomerId&page=2&limit=10
+- ``/invoice?fields=BillingCountry;Total;InvoiceId&InvoiceId=!355;344&sort=-InvoiceId``
+
+- ``/invoice?fields=Total;InvoiceId&BillingPostalCode=!null&BillingCountry=%%ermany``
+
+- ``/invoice?fields=Total;InvoiceDate;InvoiceId;CustomerId&page=2&limit=10``
+
+- ``/invoice?InvoiceDate=(2009-01-01;2009-02-01 00:00:00)``
+
 
 Example FETCH:
 
@@ -142,5 +173,7 @@ Configuration
 9.  ``AUTOCRUD_FETCH_ENABLED``: *(default True)* enable or disable FETCH method
 10. ``AUTOCRUD_QUERY_STRING_FILTERS_ENABLED``: *(default True)* enable or disable filters in querystring
 11. ``AUTOCRUD_EXPORT_ENABLED``: *(default True)* enable or disable export to csv
+12. ``AUTOCRUD_DATABASE_SCHEMA``: *(default None)* database schema to consider
+13. ``AUTOCRUD_CONDITIONAL_REQUEST_ENABLED``: *(default True)* allow conditional request
 
 License MIT

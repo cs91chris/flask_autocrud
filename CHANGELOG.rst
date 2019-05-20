@@ -1,6 +1,30 @@
 Release Notes
 ^^^^^^^^^^^^^
 
+Version 2.0.0
+-------------
+
+Released 2019-05-21
+
+* conditional request and optimistic locking support
+* add _link in ``Model`` to_dict and _meta in collection response in order to support HATEOAS
+* subresources url available
+* new validators for fetch payload
+* query string filters support range definition (between)
+* add ``AUTOCRUD_QUERY_STRING_FILTERS_ENABLED`` and ``AUTOCRUD_EXPORT_ENABLED`` config's keys
+* add support to hidden fields of ``Model``
+* enhancements on query string filters: add grater, less and or conditions. Bug fix on multiple sort condition
+* _export query string argument value is used as filename
+* add '_' prefix to "internal" query string argument in order to protect resource field with the same name
+* bug fix on export when a record has a null foreign key
+* add ``Flask-ResponseBuilder`` in order to negotiate the content-type of response
+* missing meta url from configuration
+* improved management of missing and unknown fields
+* ``Model`` support custom attributes name
+* removed exclude_tables and update required fields
+* removed ``Flask-Admin`` and ``Flask-JSON`` dependencies
+* many bug fix and code refinements
+
 Version 1.2.1
 -------------
 
@@ -57,7 +81,7 @@ Version 1.1.1
 Released 2019-04-12
 
 * enhancement on filtering: add null, not and in
-* bug fix on filter, serching and sorting
+* bug fix on filter, searching and sorting
 
 Version 1.1.0
 --------------
