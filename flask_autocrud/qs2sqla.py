@@ -132,7 +132,7 @@ class Qs2Sqla:
         if v.startswith(self._syntax.LTE):
             return to_dict('<=', self.clear_escape(v, escape=self._syntax.LTE))
         if v.startswith(self._syntax.NOT_LIKE):
-            return to_dict('not_like', self.clear_escape(v, escape=self._syntax.NOT_LIKE))
+            return {'not': [to_dict('like', self.clear_escape(v, escape=self._syntax.NOT_LIKE))]}
         if v.startswith(self._syntax.LIKE):
             return to_dict('like', self.clear_escape(v, escape=self._syntax.LIKE))
 
@@ -145,12 +145,13 @@ class Qs2Sqla:
             return {'or': [to_dict('<', down), to_dict('>', up)]}
 
         item = self.clear_empty(v)
+
         if item[0].startswith(self._syntax.NOT):
             item[0] = self.clear_escape(item[0], escape=self._syntax.NOT)
             return to_dict('not_in', item)
-        else:
-            item[0] = self.clear_escape(item[0])
-            return to_dict('in', item)
+
+        item[0] = self.clear_escape(item[0])
+        return to_dict('in', item)
 
     def parse(self, args):
         """
