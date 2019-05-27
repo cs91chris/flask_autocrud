@@ -49,7 +49,7 @@ setup(
     install_requires=[
         'Flask==1.0.2',
         'Flask-SQLAlchemy==2.4.0',
-        'Flask-ResponseBuilder==2.0.1',
+        'Flask-ResponseBuilder==2.0.2',
         'sqlalchemy-filters==0.10.0',
         'colander==1.7.0'
     ],

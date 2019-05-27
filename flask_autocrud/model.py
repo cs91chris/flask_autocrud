@@ -172,15 +172,17 @@ class Model(object):
             name=cls.__name__,
             methods=list(cls.__methods__),
             description=cls.__description__ or cls.__table__.comment,
-            fields=[dict(
-                name=col,
-                type=c.type.python_type.__name__,
-                key=c.primary_key,
-                autoincrement=c.autoincrement,
-                nullable=c.nullable,
-                unique=c.unique,
-                description=c.comment
-            ) for col, c in cls.columns().items()]
+            fields=[
+                dict(
+                    name=col,
+                    type=c.type.python_type.__name__,
+                    key=c.primary_key,
+                    autoincrement=c.autoincrement,
+                    nullable=c.nullable,
+                    unique=c.unique,
+                    description=c.comment
+                ) for col, c in cls.columns().items()
+            ]
         )
 
     def to_dict(self, links=False):
@@ -203,11 +205,6 @@ class Model(object):
                     name = v[0].__class__.__name__ + self.collection_suffix
                     resp.update({name: [i.to_dict(links) for i in v]})
             else:
-                if isinstance(v, Decimal):
-                    v = float(v)
-                elif isinstance(v, datetime):
-                    v = v.isoformat()
-
                 resp.update({k: v})
 
         if links:
