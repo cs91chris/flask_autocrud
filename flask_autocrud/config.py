@@ -1,15 +1,21 @@
 from collections import namedtuple
 
+from werkzeug.routing import FloatConverter
+from werkzeug.routing import UnicodeConverter
+
 
 class HttpStatus:
     SUCCESS = 200
     CREATED = 201
     NO_CONTENT = 204
     PARTIAL_CONTENT = 206
+    NOT_MODIFIED = 304
     BAD_REQUEST = 400
     NOT_FOUND = 404
     CONFLICT = 409
+    PRECONDITION_FAILED = 412
     UNPROCESSABLE_ENTITY = 422
+    PRECONDITION_REQUIRED = 428
     INTERNAL_SERVER_ERROR = 500
 
 
@@ -43,6 +49,11 @@ def set_default_config(app):
     app.config.setdefault('AUTOCRUD_EXPORT_ENABLED', True)
     app.config.setdefault('AUTOCRUD_QUERY_STRING_FILTERS_ENABLED', True)
     app.config.setdefault('AUTOCRUD_CONDITIONAL_REQUEST_ENABLED', True)
+
+    app.url_map.converters.update({
+        'str': UnicodeConverter,
+        'decimal': FloatConverter,
+    })
 
 
 Syntax = namedtuple(
