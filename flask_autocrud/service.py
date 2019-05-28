@@ -167,16 +167,17 @@ class Service(MethodView):
             query, _ = qsqla.dict2sqla(dict(filters=filter_by_id, related=related))
 
             if subresource is None:
-                res = query.one_or_none()
-                if not res:
+                resource = query.one_or_none()
+                if not resource:
                     return self._response.build_response(
                         builder, (dict(message='Not Found'), status.NOT_FOUND)
                     )
 
+                res = resource.to_dict(links=True)
                 self._check_etag(res)
 
                 return self._response_with_etag(
-                    builder, (res.to_dict(links=True), self._link_header(res)), res
+                    builder, (res, self._link_header(resource)), res
                 )
 
         if cap.config['AUTOCRUD_QUERY_STRING_FILTERS_ENABLED'] is True:

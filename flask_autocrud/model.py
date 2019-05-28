@@ -1,6 +1,3 @@
-from decimal import Decimal
-from datetime import datetime
-
 from sqlalchemy.orm.mapper import Mapper
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm.properties import ColumnProperty
@@ -16,8 +13,8 @@ class Model(object):
     __table__ = None
     __hidden__ = []
     __description__ = None
-    __version__ = '1'
     __methods__ = ALLOWED_METHODS
+    __version__ = '1'
 
     collection_suffix = 'List'
 
