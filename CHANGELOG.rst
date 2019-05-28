@@ -1,6 +1,16 @@
 Release Notes
 ^^^^^^^^^^^^^
 
+Version 2.0.1
+-------------
+
+Released 2019-05-29
+
+* improved tests
+* refactored PUT method in order to create resource with no AI pk
+* bug fix when pk type is string
+* code refinements and bugs fix
+
 Version 2.0.0
 -------------
 
