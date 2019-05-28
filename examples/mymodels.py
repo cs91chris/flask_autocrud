@@ -42,7 +42,7 @@ def main():
     app = Flask(__name__)
     app.config['SECRET_KEY'] = 'more_difficult_string'
     app.config['RB_DEFAULT_ACCEPTABLE_MIMETYPES'] = ['application/json', 'application/xml']
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite:///flask_autocrud/examples/db.sqlite3'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite:///examples/db.sqlite3'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     db.init_app(app)

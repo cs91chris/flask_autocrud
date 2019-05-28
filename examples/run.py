@@ -19,7 +19,7 @@ def main():
     app = Flask(__name__)
     app.config['SECRET_KEY'] = 'more_difficult_string'
     app.config['FLASK_ADMIN_SWATCH'] = 'cosmo'
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite:///flask_autocrud/examples/db.sqlite3'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite:///examples/db.sqlite3'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     admin = Admin(app)
