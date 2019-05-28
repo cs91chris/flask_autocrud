@@ -40,6 +40,9 @@ def test_bad_request(client):
     res = client.post('/artist')
     assert res.status_code == 400
 
+    res = client.put('/artist/1')
+    assert res.status_code == 400
+
 
 def test_not_found(client):
     res = client.delete('/artist/1000000000')
@@ -159,6 +162,22 @@ def test_put_creation(client):
 
     res = client.delete('/some_model/10', headers={'If-Match': etag})
     assert res.status_code == 204
+
+
+def test_put_failed(client):
+    res = client.put(
+        '/some_model/10',
+        json={'pippo': 'pluto'}
+    )
+    assert res.status_code == 422
+
+    data = res.get_json()
+    missing = data.get('missing')
+    unknown = data.get('unknown')
+    assert len(missing) == 1
+    assert len(unknown) == 1
+    assert missing[0] == 'value'
+    assert unknown[0] == 'pippo'
 
 
 def test_resource_meta(client):

@@ -58,21 +58,7 @@ class Service(MethodView):
         """
         model = self._model
         _, builder = self._response.get_mimetype_accept()
-        data = request.get_json()
-
-        if not data:
-            return self._response.build_response(
-                builder, (dict(message='Bad Request'), status.BAD_REQUEST)
-            )
-
-        missing, unknown = model.validate(data)
-        if unknown or missing:
-            return self._response.build_response(
-                builder, (dict(
-                    unknown=unknown or [],
-                    missing=missing or []
-                ), status.UNPROCESSABLE_ENTITY)
-            )
+        data = self._validate_new_data(builder)
 
         resource = model.query.filter_by(**data).first()
 
@@ -100,13 +86,7 @@ class Service(MethodView):
         """
         model = self._model
         _, builder = self._response.get_mimetype_accept()
-        data = request.get_json() or {}
-        _, unknown = model.validate(data)
-
-        if unknown:
-            return self._response.build_response(
-                builder, (dict(unknown=unknown), status.UNPROCESSABLE_ENTITY)
-            )
+        data = self._validate_new_data(builder)
 
         resource = model.query.get(resource_id)
         if resource:
@@ -116,7 +96,7 @@ class Service(MethodView):
                 builder, (res, self._link_header(resource)), res
             )
 
-        resource = model(**data)
+        resource = model(**{model.primary_key_field(): resource_id, **data})
         res = self._add_resource(resource)
         return self._response_with_etag(
             builder, (res, self._location_header(resource), status.CREATED), res
@@ -134,9 +114,9 @@ class Service(MethodView):
         _, unknown = model.validate(data)
 
         if unknown:
-            return self._response.build_response(
+            flask.abort(self._response.build_response(
                 builder, (dict(unknown=unknown), status.UNPROCESSABLE_ENTITY)
-            )
+            ))
 
         resource = model.query.get(resource_id)
         if not resource:
@@ -223,9 +203,10 @@ class Service(MethodView):
             schema = FetchPayloadSchema()
             data = schema.deserialize(request.get_json() or {})
         except colander.Invalid as exc:
-            return self._response.build_response(builder, (
+            flask.abort(self._response.build_response(builder, (
                 dict(message=exc.asdict()), status.UNPROCESSABLE_ENTITY
-            ))
+            )))
+            return  # only to prevent warning
         return self._build_response_list(self._model, builder, data)
 
     def _build_response_list(self, model, builder, data, error=None):
@@ -250,9 +231,9 @@ class Service(MethodView):
         invalid += error
 
         if len(invalid) > 0:
-            return self._response.build_response(
+            flask.abort(self._response.build_response(
                 builder, (dict(invalid=invalid), status.BAD_REQUEST)
-            )
+            ))
 
         query, pagination = sqlaf.apply_pagination(query, page, limit)
         result = query.all()
@@ -303,6 +284,30 @@ class Service(MethodView):
 
         return response
 
+    def _validate_new_data(self, builder):
+        """
+
+        :param builder:
+        :return:
+        """
+        model = self._model
+        data = request.get_json()
+
+        if not data:
+            flask.abort(self._response.build_response(
+                builder, (dict(message='Bad Request'), status.BAD_REQUEST)
+            ))
+
+        missing, unknown = model.validate(data)
+        if unknown or missing:
+            flask.abort(self._response.build_response(
+                builder, (dict(
+                    unknown=unknown or [],
+                    missing=missing or []
+                ), status.UNPROCESSABLE_ENTITY)
+            ))
+        return data
+
     @classmethod
     def _add_resource(cls, resource):
         """
@@ -340,7 +345,6 @@ class Service(MethodView):
         :param pagination:
         :return:
         """
-
         args = Qs2Sqla(cls._model).arguments.scalar
 
         page_number = pagination.page_number
@@ -442,15 +446,21 @@ class Service(MethodView):
         :return:
         """
         if cap.config['AUTOCRUD_CONDITIONAL_REQUEST_ENABLED'] is True:
-            etag = data if isinstance(data, str) else cls._compute_etag(data)
+            response = None
             match = request.if_match
             none_match = request.if_none_match
+            etag = data if isinstance(data, str) else cls._compute_etag(data)
 
             if request.method in ('GET', 'FETCH'):
                 if none_match and etag in none_match:
-                    flask.abort(flask.Response(status=304))
+                    response = flask.Response(status=status.NOT_MODIFIED)
             elif request.method in ('PUT', 'PATCH', 'DELETE'):
                 if not match:
-                    flask.abort(flask.Response(status=428))
-                if etag not in match:
-                    flask.abort(flask.Response(status=412))
+                    response = flask.Response(status=status.PRECONDITION_REQUIRED)
+                elif etag not in match:
+                    response = flask.Response(status=status.PRECONDITION_FAILED)
+
+            if response:
+                response.headers.pop('Content-Type', None)
+                response.headers.pop('Content-Length', None)
+                flask.abort(response)
