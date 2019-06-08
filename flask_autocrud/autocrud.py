@@ -5,30 +5,34 @@ from sqlalchemy.ext.declarative import declarative_base
 
 from flask_autocrud.model import Model
 from flask_autocrud.service import Service
+from flask_errors_handler import ErrorHandler
 from flask_response_builder import ResponseBuilder
 
 from .config import set_default_config
 
 
 class AutoCrud(object):
-    def __init__(self, app=None, db=None, models=None, builder=None, **kwargs):
+    def __init__(self, app=None, db=None, models=None, builder=None, error=None, **kwargs):
         """
 
         :param db:
         :param app:
         :param models:
         :param builder:
+        :param error:
         """
         self._models = {}
         self._app = app
         self._db = db
         self._api = None
+        self._response_error = None
         self._response_builder = None
 
         if app is not None:
             self.init_app(
                 self._app, self._db,
-                models=models, builder=builder, **kwargs
+                models=models, builder=builder, error=error,
+                **kwargs
             )
 
     @property
@@ -48,6 +52,14 @@ class AutoCrud(object):
         return self._response_builder
 
     @property
+    def response_error(self):
+        """
+
+        :return:
+        """
+        return self._response_error
+
+    @property
     def models(self):
         """
 
@@ -55,18 +67,20 @@ class AutoCrud(object):
         """
         return self._models
 
-    def init_app(self, app, db, models=None, builder=None, **kwargs):
+    def init_app(self, app, db, models=None, builder=None, error=None, **kwargs):
         """
 
         :param app:
         :param db:
         :param models:
         :param builder:
+        :param error:
         :return:
         """
         self._db = db
         self._app = app
         self._response_builder = builder or ResponseBuilder()
+        self._response_error = error or ErrorHandler()
 
         if not isinstance(self._response_builder, ResponseBuilder):
             raise AttributeError(
@@ -83,6 +97,7 @@ class AutoCrud(object):
 
         set_default_config(self._app)
         self._response_builder.init_app(self._app)
+        self._response_error.init_app(self._app, response=self._response_builder.on_accept())
 
         subdomain = self._app.config['AUTOCRUD_SUBDOMAIN']
         self._api = Blueprint('flask_autocrud', __name__, subdomain=subdomain)
@@ -113,6 +128,7 @@ class AutoCrud(object):
         if self._app.config['AUTOCRUD_RESOURCES_URL_ENABLED']:
             self._register_resources_route()
 
+        self._response_error.api_register(self._api)
         self._app.register_blueprint(self._api)
 
         if not hasattr(app, 'extensions'):

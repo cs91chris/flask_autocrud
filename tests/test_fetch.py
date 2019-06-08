@@ -89,9 +89,8 @@ def test_validators(client):
     )
     assert res.status_code == 422
 
-    data = res.get_json()
-    mess = data.get('message')
-    assert all(e in mess for e in (
+    data = res.get_json()['response']
+    assert all(e in data for e in (
         "fields",
         "related",
         "sorting.0.field",
@@ -111,10 +110,9 @@ def test_validators(client):
     )
     assert res.status_code == 422
 
-    data = res.get_json()
-    mess = data.get('message')
-    assert 'filters' in mess
-    assert 'related' in mess
+    data = res.get_json()['response']
+    assert 'filters' in data
+    assert 'related' in data
 
     res = client.fetch(
         '/artist',
@@ -131,7 +129,7 @@ def test_validators(client):
     )
     assert res.status_code == 400
 
-    data = res.get_json()
+    data = res.get_json()['response']
     assert 'invalid' in data and len(data['invalid']) == 1
     assert 'pluto' in data['invalid']
 
@@ -147,7 +145,7 @@ def test_validators(client):
     )
     assert res.status_code == 400
 
-    data = res.get_json()
+    data = res.get_json()['response']
     assert 'invalid' in data and len(data['invalid']) == 3
     assert all(e in data['invalid'] for e in (
         "pippo",

@@ -40,11 +40,7 @@ class Service(MethodView):
             resource = model.query.get(resource_id)
 
             if not resource:
-                return (
-                    {'message': 'Not Found'},
-                    {'Content-Type': mime_type},
-                    status.NOT_FOUND
-                )
+                flask.abort(status.NOT_FOUND)
 
             self._check_etag(resource)
             session.delete(resource)
@@ -58,7 +54,7 @@ class Service(MethodView):
         """
         model = self._model
         _, builder = self._response.get_mimetype_accept()
-        data = self._validate_new_data(builder)
+        data = self._validate_new_data()
 
         resource = model.query.filter_by(**data).first()
 
@@ -70,9 +66,8 @@ class Service(MethodView):
             res = self._add_resource(resource)
         except IntegrityError:
             self._db.session().rollback()
-            return self._response.build_response(
-                builder, (dict(message='Conflict'), status.CONFLICT)
-            )
+            flask.abort(status.CONFLICT)
+            return  # only to prevent warning
 
         return self._response_with_etag(
             builder, (res, status.CREATED, self._location_header(resource)), res
@@ -86,7 +81,7 @@ class Service(MethodView):
         """
         model = self._model
         _, builder = self._response.get_mimetype_accept()
-        data = self._validate_new_data(builder)
+        data = self._validate_new_data()
 
         resource = model.query.get(resource_id)
         if resource:
@@ -114,15 +109,11 @@ class Service(MethodView):
         _, unknown = model.validate(data)
 
         if unknown:
-            flask.abort(self._response.build_response(
-                builder, (dict(unknown=unknown), status.UNPROCESSABLE_ENTITY)
-            ))
+            flask.abort(status.UNPROCESSABLE_ENTITY, response=dict(unknown=unknown))
 
         resource = model.query.get(resource_id)
         if not resource:
-            return self._response.build_response(
-                builder, (dict(message='Not Found'), status.NOT_FOUND)
-            )
+            flask.abort(status.NOT_FOUND)
 
         self._check_etag(resource)
         res = self._merge_resource(resource, data)
@@ -153,9 +144,7 @@ class Service(MethodView):
         if subresource is not None:
             model = model.submodel_from_url("/" + subresource)
             if not model:
-                return self._response.build_response(
-                    builder, (dict(message='Not Found'), status.NOT_FOUND)
-                )
+                flask.abort(status.NOT_FOUND)
 
         qsqla = Qs2Sqla(model, self.syntax, self.arguments)
         if qsqla.arguments.scalar.extended in request.args:
@@ -169,9 +158,7 @@ class Service(MethodView):
             if subresource is None:
                 resource = query.one_or_none()
                 if not resource:
-                    return self._response.build_response(
-                        builder, (dict(message='Not Found'), status.NOT_FOUND)
-                    )
+                    flask.abort(status.NOT_FOUND)
 
                 res = resource.to_dict(links=True)
                 self._check_etag(res)
@@ -204,10 +191,9 @@ class Service(MethodView):
             schema = FetchPayloadSchema()
             data = schema.deserialize(request.get_json() or {})
         except colander.Invalid as exc:
-            flask.abort(self._response.build_response(builder, (
-                dict(message=exc.asdict()), status.UNPROCESSABLE_ENTITY
-            )))
+            flask.abort(status.UNPROCESSABLE_ENTITY, response=exc.asdict())
             return  # only to prevent warning
+
         return self._build_response_list(self._model, builder, data)
 
     def _build_response_list(self, model, builder, data, error=None):
@@ -232,9 +218,7 @@ class Service(MethodView):
         invalid += error
 
         if len(invalid) > 0:
-            flask.abort(self._response.build_response(
-                builder, (dict(invalid=invalid), status.BAD_REQUEST)
-            ))
+            flask.abort(status.BAD_REQUEST, response=dict(invalid=invalid))
 
         query, pagination = sqlaf.apply_pagination(query, page, limit)
         result = query.all()
@@ -285,28 +269,23 @@ class Service(MethodView):
 
         return response
 
-    def _validate_new_data(self, builder):
+    def _validate_new_data(self):
         """
 
-        :param builder:
         :return:
         """
         model = self._model
         data = request.get_json()
 
         if not data:
-            flask.abort(self._response.build_response(
-                builder, (dict(message='Bad Request'), status.BAD_REQUEST)
-            ))
+            flask.abort(status.BAD_REQUEST)
 
         missing, unknown = model.validate(data)
         if unknown or missing:
-            flask.abort(self._response.build_response(
-                builder, (dict(
-                    unknown=unknown or [],
-                    missing=missing or []
-                ), status.UNPROCESSABLE_ENTITY)
+            flask.abort(status.UNPROCESSABLE_ENTITY, response=dict(
+                unknown=unknown or [], missing=missing or []
             ))
+
         return data
 
     @classmethod
@@ -447,21 +426,15 @@ class Service(MethodView):
         :return:
         """
         if cap.config['AUTOCRUD_CONDITIONAL_REQUEST_ENABLED'] is True:
-            response = None
             match = request.if_match
             none_match = request.if_none_match
             etag = data if isinstance(data, str) else cls._compute_etag(data)
 
             if request.method in ('GET', 'FETCH'):
                 if none_match and etag in none_match:
-                    response = flask.Response(status=status.NOT_MODIFIED)
+                    flask.abort(flask.Response(status=status.NOT_MODIFIED))
             elif request.method in ('PUT', 'PATCH', 'DELETE'):
                 if not match:
-                    response = flask.Response(status=status.PRECONDITION_REQUIRED)
+                    flask.abort(status.PRECONDITION_REQUIRED)
                 elif etag not in match:
-                    response = flask.Response(status=status.PRECONDITION_FAILED)
-
-            if response:
-                response.headers.pop('Content-Type', None)
-                response.headers.pop('Content-Length', None)
-                flask.abort(response)
+                    flask.abort(status.PRECONDITION_FAILED, response={'invalid': etag})

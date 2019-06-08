@@ -178,7 +178,7 @@ def test_query_string_invalid(client):
     res = client.get('/invoice?_fields=pippo&_sort=pluto&paperino=1')
     assert res.status_code == 400
 
-    data = res.get_json()
+    data = res.get_json()['response']
     assert 'invalid' in data and len(data['invalid']) == 3
     assert all(e in data['invalid'] for e in (
         'pippo',

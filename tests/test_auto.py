@@ -170,7 +170,7 @@ def test_put_failed(client):
     )
     assert res.status_code == 422
 
-    data = res.get_json()
+    data = res.get_json()['response']
     missing = data.get('missing')
     unknown = data.get('unknown')
     assert len(missing) == 1
