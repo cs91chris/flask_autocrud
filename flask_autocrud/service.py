@@ -6,6 +6,8 @@ from flask import current_app as cap
 from flask.views import MethodView
 
 from werkzeug.http import generate_etag
+from werkzeug.exceptions import NotImplemented
+from werkzeug.exceptions import MethodNotAllowed
 
 import sqlalchemy_filters as sqlaf
 from sqlalchemy.exc import IntegrityError
@@ -24,6 +26,22 @@ class Service(MethodView):
     _response = None
     syntax = None
     arguments = None
+
+    def dispatch_request(self, *args, **kwargs):
+        """
+
+        :param args:
+        :param kwargs:
+        """
+        methods = self._model.__methods__
+        if request.method not in methods:
+            raise MethodNotAllowed(valid_methods=list(methods))
+
+        controller = getattr(self, request.method.lower(), None)
+        if controller is None:
+            raise NotImplemented()
+
+        return controller(*args, **kwargs)
 
     def delete(self, resource_id):
         """

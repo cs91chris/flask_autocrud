@@ -3,11 +3,11 @@ from flask import Blueprint
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.ext.declarative import declarative_base
 
-from flask_autocrud.model import Model
-from flask_autocrud.service import Service
 from flask_errors_handler import ErrorHandler
 from flask_response_builder import ResponseBuilder
 
+from .model import Model
+from .service import Service
 from .config import set_default_config
 
 
@@ -21,10 +21,10 @@ class AutoCrud(object):
         :param builder:
         :param error:
         """
-        self._models = {}
         self._app = app
         self._db = db
         self._api = None
+        self._models = {}
         self._response_error = None
         self._response_builder = None
 
@@ -52,7 +52,7 @@ class AutoCrud(object):
         return self._response_builder
 
     @property
-    def response_error(self):
+    def error_handler(self):
         """
 
         :return:
@@ -79,21 +79,14 @@ class AutoCrud(object):
         """
         self._db = db
         self._app = app
-        self._response_builder = builder or ResponseBuilder()
         self._response_error = error or ErrorHandler()
+        self._response_builder = builder or ResponseBuilder()
 
         if not isinstance(self._response_builder, ResponseBuilder):
-            raise AttributeError(
-                "'builder' type must be instance of {}".format(ResponseBuilder.__name__)
-            )
+            raise AttributeError("'builder' must be instance of '{}'".format(ResponseBuilder))
 
-        if self._db is None:
-            raise AttributeError(
-                "You can not create {} without an SQLAlchemy instance. "
-                "Please consider to use the init_app method instead".format(
-                    self.__class__.__name__
-                )
-            )
+        if not isinstance(self._response_error, ErrorHandler):
+            raise AttributeError("'error' must be instance of '{}'".format(ErrorHandler))
 
         set_default_config(self._app)
         self._response_builder.init_app(self._app)
@@ -106,9 +99,7 @@ class AutoCrud(object):
             for m in models:
                 if not issubclass(m, (db.Model, Model)):
                     raise AttributeError(
-                        "'{}' must be both a subclass of {} and of {}".format(
-                            m, db.Model.__name__, Model.__name__
-                        )
+                        "'{}' must be both a subclass of {} and of {}".format(m, db.Model, Model)
                     )
                 self._register_model(m, **kwargs)
         else:
@@ -117,13 +108,12 @@ class AutoCrud(object):
             automap_model.prepare(self._db.engine, reflect=True, schema=schema)
 
             for model in automap_model.classes:
+                self._register_model(model, **kwargs)
                 if self._app.config['AUTOCRUD_READ_ONLY']:
-                    model.__methods__ = {'GET', 'FETCH'}
+                    model.__methods__ = {'OPTION', 'HEAD', 'GET', 'FETCH'}
 
                 if not self._app.config['AUTOCRUD_FETCH_ENABLED']:
                     model.__methods__ -= {'FETCH'}
-
-                self._register_model(model, **kwargs)
 
         if self._app.config['AUTOCRUD_RESOURCES_URL_ENABLED']:
             self._register_resources_route()
@@ -161,22 +151,16 @@ class AutoCrud(object):
             self._api.add_url_rule(
                 model.__url__ + url,
                 view_func=view,
-                methods=methods or ['GET'],
+                methods=methods,
                 strict_slashes=False,
                 **kwargs
             )
 
-        if 'GET' in model.__methods__:
-            add_route(defaults={'resource_id': None})
+        add_route(methods=['POST', 'FETCH'])
+        add_route(defaults={'resource_id': None})
 
-            if self._app.config['AUTOCRUD_METADATA_ENABLED'] is True:
-                add_route(self._app.config['AUTOCRUD_METADATA_URL'])
-
-        if 'POST' in model.__methods__:
-            add_route(methods=['POST'])
-
-        if 'FETCH' in model.__methods__:
-            add_route(methods=['FETCH'])
+        if self._app.config['AUTOCRUD_METADATA_ENABLED'] is True:
+            add_route(self._app.config['AUTOCRUD_METADATA_URL'])
 
         self._models[model.__name__] = model
         pk = model.columns().get(model.primary_key_field())
