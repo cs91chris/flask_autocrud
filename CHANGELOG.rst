@@ -1,6 +1,15 @@
 Release Notes
 ^^^^^^^^^^^^^
 
+
+Version 2.1.0
+-------------
+
+Released 2019-06-16
+
+* new autocrud cli tool
+* api problem response on error with Flask-ErrorsHandler
+
 Version 2.0.1
 -------------
 

@@ -1,9 +1,11 @@
 Flask-AutoCRUD
 ==============
 
-Inspired by `sandman2 <https://github.com/jeffknupp/sandman2>`__,
-based on `sqlalchemy-filters <https://pypi.org/project/sqlalchemy-filters>`__
-and `Flask-ResponseBuilder <https://pypi.org/project/Flask-ResponseBuilder>`__
+Inspired by: `sandman2 <https://github.com/jeffknupp/sandman2>`__
+
+based on: `sqlalchemy-filters <https://pypi.org/project/sqlalchemy-filters>`__
+`Flask-ResponseBuilder <https://pypi.org/project/Flask-ResponseBuilder>`__
+`Flask-ErrorsHandler <https://pypi.org/project/Flask-ErrorsHandler>`__
 
 Automatically generate a RESTful APIs for CRUD operation and advanced search on a database.
 If a list of ``Model`` is not provided, all tables are affected, instead you can customize:
@@ -16,7 +18,7 @@ If a list of ``Model`` is not provided, all tables are affected, instead you can
 
 
 Features
-~~~~~~~~~~
+~~~~~~~~
 
 - HATEOAS support
 - conditional requests via ETag header
@@ -27,7 +29,7 @@ Features
 - JSON and XML response based on Accept header
 - export to csv available
 - meta resource description
-
+- cli tool to run autocrud on a database
 
 Quickstart
 ~~~~~~~~~~
@@ -37,6 +39,7 @@ Install ``flask_autocrud`` using ``pip``:
 ::
 
 	$ pip install Flask-AutoCRUD
+
 
 .. _section-1:
 
@@ -158,6 +161,38 @@ Example FETCH:
         }'
 
 .. _section-3:
+
+AutoCRUD cli
+^^^^^^^^^^^^
+
+You can use autocrud as a standalone application configurable via yaml file.
+Some options could be given via cli see: ``autocrud -h``,
+but if configuration file is given these options will be ignored.
+
+If ``gunicorn`` is installed on your system it will be chosen as wsgi http server
+otherwise the default Flask builtin simple server will be used.
+Under windows you can install ``waitress``.
+
+Configuration file contains 2 principal macro section:
+
+- app: every configuration under it will be passed to Flask config object
+- wsgi: every configuration under it will be passed to the chosen wsgi
+
+
+For example:
+
+.. code:: yaml
+
+	app:
+	  SQLALCHEMY_DATABASE_URI: sqlite+pysqlite:///examples/db.sqlite3
+	  SQLALCHEMY_TRACK_MODIFICATIONS: false
+	wsgi:
+	  bind: localhost:5000
+	  workers: 1
+	  threads: 1
+
+
+.. _section-4:
 
 Configuration
 ^^^^^^^^^^^^^

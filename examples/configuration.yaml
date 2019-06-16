@@ -1,0 +1,7 @@
+app:
+  SQLALCHEMY_DATABASE_URI: sqlite+pysqlite:///examples/db.sqlite3
+  SQLALCHEMY_TRACK_MODIFICATIONS: false
+wsgi:
+  bind: localhost:5000
+  workers: 1
+  threads: 1
