@@ -11,8 +11,9 @@ from setuptools import setup
 from setuptools import find_packages
 from setuptools.command.test import test
 
-from flask_autocrud import __version__
 from flask_autocrud import __author__
+from flask_autocrud import __version__
+
 
 author, email = __author__.split()
 email = email.lstrip('<').rstrip('>')
@@ -42,6 +43,11 @@ setup(
     zip_safe=False,
     include_package_data=True,
     platforms='any',
+    entry_points={
+        'console_scripts': [
+            'autocrud = flask_autocrud.scripts.run:main',
+        ],
+    },
     tests_require=[
         'pytest==4.5.0',
         'pytest-cov==2.7.1'
@@ -50,10 +56,11 @@ setup(
         'werkzeug==0.15',
         'Flask==1.0.*',
         'Flask-SQLAlchemy==2.4.0',
-        'Flask-ResponseBuilder==2.*',
-        'Flask-ErrorsHandler==2.*',
+        'Flask-ResponseBuilder==2.0.*',
+        'Flask-ErrorsHandler==2.2.*',
         'sqlalchemy-filters==0.10.0',
-        'colander==1.7.0'
+        'colander==1.7.0',
+        'PyYAML==5.1'
     ],
     cmdclass={'test': PyTest},
     test_suite='tests',

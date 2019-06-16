@@ -1,2 +1,2 @@
 [run]
-omit = flask_autocrud/examples/*
+omit = flask_autocrud/examples/*, flask_autocrud/scripts/*
