@@ -53,7 +53,7 @@ setup(
         'pytest-cov==2.7.1'
     ],
     install_requires=[
-        'werkzeug==0.15',
+        'werkzeug==0.15.3',
         'Flask==1.0.*',
         'Flask-SQLAlchemy==2.4.0',
         'Flask-ResponseBuilder==2.0.*',
