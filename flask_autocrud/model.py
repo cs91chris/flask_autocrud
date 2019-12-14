@@ -7,14 +7,14 @@ from .config import ALLOWED_METHODS
 
 class Model(object):
     __pks__ = None
+    __url__ = None
     __cols__ = None
     __rels__ = None
-    __url__ = None
     __table__ = None
     __hidden__ = []
+    __version__ = '1'
     __description__ = None
     __methods__ = ALLOWED_METHODS
-    __version__ = '1'
 
     collection_suffix = 'List'
 

@@ -1,6 +1,14 @@
 Release Notes
 ^^^^^^^^^^^^^
 
+Version 2.1.1
+-------------
+
+Released 2019-12-14
+
+* fix failed tests
+* update module version handler
+* update dependencies version
 
 Version 2.1.0
 -------------
