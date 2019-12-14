@@ -150,16 +150,24 @@ def test_resource_crud(client):
 
 
 def test_put_creation(client):
+    id_res = 123456
+
     res = client.put(
-        '/some_model/10',
+        '/some_model/{}'.format(id_res),
         json={'value': 'pippo'}
     )
     assert res.status_code == 201
     etag = res.headers.get('ETag')
     assert etag is not None
-    assert res.get_json().get('id') == 10
+    assert res.get_json().get('id') == id_res
 
-    res = client.delete('/some_model/10', headers={'If-Match': etag})
+    res = client.get('/some_model/{}'.format(id_res), headers={'If-Match': etag})
+    assert res.status_code == 200
+    etag = res.headers.get('ETag')
+    assert etag is not None
+    assert res.get_json().get('id') == id_res
+
+    res = client.delete('/some_model/{}'.format(id_res), headers={'If-Match': etag})
     assert res.status_code == 204
 
 
