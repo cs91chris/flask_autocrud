@@ -11,22 +11,25 @@ from setuptools import setup
 from setuptools import find_packages
 from setuptools.command.test import test
 
-from flask_autocrud import __author__
 from flask_autocrud import __version__
+from flask_autocrud import __author_info__
 
 
-author, email = __author__.split()
-email = email.lstrip('<').rstrip('>')
-
-with open("README.rst", "r") as fh:
+with open("README.rst") as fh:
     long_description = fh.read()
 
 
 class PyTest(test):
     def finalize_options(self):
+        """
+
+        """
         test.finalize_options(self)
 
     def run_tests(self):
+        """
+
+        """
         sys.exit(pytest.main(['tests']))
 
 
@@ -35,8 +38,8 @@ setup(
     version=__version__,
     url='https://github.com/cs91chris/flask_autocrud/',
     license='MIT',
-    author=author,
-    author_email=email,
+    author=__author_info__['name'],
+    author_email=__author_info__['email'],
     description='Automatically generated a RESTful API services for CRUD operation and queries on database',
     long_description=long_description,
     packages=find_packages(),
@@ -53,14 +56,13 @@ setup(
         'pytest-cov==2.7.1'
     ],
     install_requires=[
-        'werkzeug==0.15',
-        'Flask==1.0.*',
-        'Flask-SQLAlchemy==2.4.0',
-        'Flask-ResponseBuilder==2.0.*',
-        'Flask-ErrorsHandler==2.2.*',
-        'sqlalchemy-filters==0.10.0',
-        'colander==1.7.0',
-        'PyYAML==5.1'
+        'Flask==1.1.*',
+        'Flask-SQLAlchemy==2.4.*',
+        'Flask-ResponseBuilder==2.*',
+        'Flask-ErrorsHandler==2.*',
+        'sqlalchemy-filters==0.10.*',
+        'colander==1.7.*',
+        'PyYAML==5.*'
     ],
     cmdclass={'test': PyTest},
     test_suite='tests',
