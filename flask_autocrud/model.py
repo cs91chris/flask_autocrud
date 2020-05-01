@@ -1,3 +1,5 @@
+import collections
+
 from sqlalchemy.orm.mapper import Mapper
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm.properties import ColumnProperty
@@ -34,12 +36,13 @@ class Model(object):
         cls.__cols__ = {}
 
         for i in cls.__dict__:
-            if not i.startswith('_') and i not in cls.__hidden__:
+            if not (i.startswith('_') or i in cls.__hidden__):
                 col = getattr(cls, i)
-                if isinstance(col.comparator, ColumnProperty.Comparator):
-                    cls.__cols__[i] = col
-                    if col.primary_key:
-                        cls.__pks__.append(i)
+                if not isinstance(col, collections.Callable):
+                    if isinstance(col.comparator, ColumnProperty.Comparator):
+                        cls.__cols__[i] = col
+                        if col.primary_key:
+                            cls.__pks__.append(i)
 
     @classmethod
     def _load_related(cls):
@@ -67,6 +70,7 @@ class Model(object):
         """
         if cls.__cols__ is None:
             cls._load_cols()
+
         return cls.__cols__
 
     @classmethod
@@ -79,6 +83,7 @@ class Model(object):
         for col, c in cls.columns().items():
             if not (c.nullable or c.primary_key) or (c.primary_key and not c.autoincrement):
                 columns.append(col)
+
         return columns
 
     @classmethod
@@ -91,6 +96,7 @@ class Model(object):
         for col, c in cls.columns().items():
             if c.type.python_type is str:
                 columns.append(col)
+
         return columns
 
     @classmethod
@@ -103,6 +109,7 @@ class Model(object):
         for col, c in cls.columns().items():
             if c.nullable:
                 columns.append(col)
+
         return columns
 
     @classmethod
@@ -113,6 +120,7 @@ class Model(object):
         """
         if cls.__pks__ is None:
             cls._load_cols()
+
         return cls.__pks__[0]
 
     @classmethod
@@ -130,8 +138,9 @@ class Model(object):
 
         for k in cls.__rels__.keys():
             if k == name:
-                return cls.__rels__.get(k).get('instance'),\
+                return cls.__rels__.get(k).get('instance'), \
                        cls.__rels__.get(k).get('columns')
+
         return None, None
 
     @classmethod
@@ -192,7 +201,7 @@ class Model(object):
         data = self if isinstance(self, dict) else self.__dict__
 
         for k, v in data.items():
-            if k.startswith('_'):
+            if k.startswith('_') or k in self.__hidden__:
                 continue
 
             if isinstance(v, Model):
@@ -206,6 +215,7 @@ class Model(object):
 
         if links:
             resp['_links'] = self.links()
+
         return resp
 
     def links(self):
@@ -223,7 +233,10 @@ class Model(object):
                     link_dict[key] = instance.resource_uri()
             elif isinstance(r.argument, Mapper):
                 key = r.argument.class_.__name__
-                link_dict[key] = "{}{}".format(self.resource_uri(), r.argument.class_.__url__)
+                link_dict[key] = "{}{}".format(
+                    self.resource_uri(),
+                    r.argument.class_.__url__
+                )
 
         return link_dict
 
@@ -244,4 +257,5 @@ class Model(object):
         for attr, val in attributes.items():
             if attr in self.columns().keys():
                 setattr(self, attr, val)
+
         return self

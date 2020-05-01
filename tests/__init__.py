@@ -14,6 +14,7 @@ def create_app(m=None, conf=None):
     _app = Flask(__name__)
     _app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite:///tests/db.sqlite3'
     _app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    _app.config['ERROR_FORCE_CONTENT_TYPE'] = False
     _app.config.update(**(conf or {}))
 
     with _app.app_context():
