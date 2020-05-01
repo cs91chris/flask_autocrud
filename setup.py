@@ -4,19 +4,49 @@ Flask-AutoCRUD
 
 Automatically generated a RESTful API services for CRUD operation and queries on database
 """
+import os
+import re
 import sys
-import pytest
 
-from setuptools import setup
-from setuptools import find_packages
 from setuptools.command.test import test
+from setuptools import setup, find_packages
 
-from flask_autocrud import __version__
-from flask_autocrud import __author_info__
+BASE_PATH = os.path.dirname(__file__)
+VERSION_FILE = os.path.join('flask_autocrud', 'version.py')
 
 
-with open("README.rst") as fh:
-    long_description = fh.read()
+def read(file):
+    """
+
+    :param file:
+    :return:
+    """
+    with open(os.path.join(BASE_PATH, file)) as f:
+        return f.read()
+
+
+def grep(file, name):
+    """
+
+    :param file:
+    :param name:
+    :return:
+    """
+    pattern = r"{attr}\W*=\W*'([^']+)'".format(attr=name)
+    value, = re.findall(pattern, read(file))
+    return value
+
+
+def readme(file):
+    """
+
+    :param file:
+    :return:
+    """
+    try:
+        return read(file)
+    except OSError as exc:
+        print(str(exc), file=sys.stderr)
 
 
 class PyTest(test):
@@ -30,18 +60,19 @@ class PyTest(test):
         """
 
         """
+        import pytest
         sys.exit(pytest.main(['tests']))
 
 
 setup(
-    name='Flask-AutoCRUD',
-    version=__version__,
-    url='https://github.com/cs91chris/flask_autocrud/',
     license='MIT',
-    author=__author_info__['name'],
-    author_email=__author_info__['email'],
+    name='Flask-AutoCRUD',
+    url='https://github.com/cs91chris/flask_autocrud/',
+    version=grep(VERSION_FILE, '__version__'),
+    author=grep(VERSION_FILE, '__author_name__'),
+    author_email=grep(VERSION_FILE, '__author_email__'),
     description='Automatically generated a RESTful API services for CRUD operation and queries on database',
-    long_description=long_description,
+    long_description=readme('README.rst'),
     packages=find_packages(),
     zip_safe=False,
     include_package_data=True,
@@ -52,17 +83,17 @@ setup(
         ],
     },
     tests_require=[
-        'pytest==4.5.0',
-        'pytest-cov==2.7.1'
+        'pytest >= 5',
+        'pytest-cov >= 2'
     ],
     install_requires=[
-        'Flask==1.1.*',
-        'Flask-SQLAlchemy==2.4.*',
-        'Flask-ResponseBuilder==2.*',
-        'Flask-ErrorsHandler==2.*',
-        'sqlalchemy-filters==0.10.*',
-        'colander==1.7.*',
-        'PyYAML==5.*'
+        'Flask >= 1.0.4',
+        'Flask-SQLAlchemy >= 2.4',
+        'Flask-ResponseBuilder >= 2',
+        'Flask-ErrorsHandler >= 3',
+        'sqlalchemy-filters >= 0.11',
+        'colander >= 1.7',
+        'PyYAML'
     ],
     cmdclass={'test': PyTest},
     test_suite='tests',
