@@ -75,8 +75,10 @@ class AutoCrud(object):
         :return:
         """
         self._db = db
-        self._response_error = error or ErrorHandler()
         self._response_builder = builder or ResponseBuilder()
+        self._response_error = error or ErrorHandler(
+            response=self.response_builder.on_accept()
+        )
 
         if not isinstance(self._response_builder, ResponseBuilder):
             raise AttributeError("'builder' must be instance of '{}'".format(ResponseBuilder))
@@ -127,7 +129,23 @@ class AutoCrud(object):
         """
 
         :param model:
+        :param conf:
         """
+        def add_route(url='', methods=None, **params):
+            """
+
+            :param url:
+            :param methods:
+            :param params:
+            """
+            self._api.add_url_rule(
+                model.__url__ + url,
+                view_func=view,
+                methods=methods,
+                strict_slashes=False,
+                **params
+            )
+
         class_name = model.__name__
         if model.__url__ is None:
             model.__url__ = "{}/{}".format(
@@ -144,15 +162,6 @@ class AutoCrud(object):
                 **kwargs
             }
         ).as_view(class_name)
-
-        def add_route(url='', methods=None, **params):
-            self._api.add_url_rule(
-                model.__url__ + url,
-                view_func=view,
-                methods=methods,
-                strict_slashes=False,
-                **params
-            )
 
         add_route(methods=['POST', 'FETCH'])
         add_route(defaults={'resource_id': None})
