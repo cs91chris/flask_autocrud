@@ -1,7 +1,7 @@
 import collections
 
-from sqlalchemy.orm.mapper import Mapper
 from sqlalchemy.inspection import inspect
+from sqlalchemy.orm.mapper import Mapper
 from sqlalchemy.orm.properties import ColumnProperty
 
 from .config import ALLOWED_METHODS

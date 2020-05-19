@@ -1,69 +1,66 @@
-from colander import null
-from colander import String
-from colander import Invalid
-from colander import SchemaType
-from colander import SchemaNode
-from colander import MappingSchema
-from colander import SequenceSchema
+import colander
 
 
-class FilterValue(SchemaType):
+class FilterValue(colander.SchemaType):
     def deserialize(self, node, cstruct):
-        if cstruct is null:
-            return null
+        if cstruct is colander.null:
+            return colander.null
         t = type(cstruct)
 
         if t not in (str, int, float, list):
-            raise Invalid(node, "Invalid types, only str, int, float, list are supported")
+            raise colander.Invalid(node, "Invalid types, only str, int, float, list are supported")
 
         return cstruct
 
 
-class RelatedSchema(SchemaType):
+class RelatedSchema(colander.SchemaType):
     def deserialize(self, node, cstruct):
-        if cstruct is null:
-            return null
+        if cstruct is colander.null:
+            return colander.null
 
         if type(cstruct) is not dict:
-            raise Invalid(node, "Invalid types: it must be dict")
+            raise colander.Invalid(node, "Invalid types: it must be dict")
 
         for k, v in cstruct.items():
             if type(v) is not list:
-                raise Invalid(node, "Invalid types of '{}': it must be a list".format(k))
+                raise colander.Invalid(node, "Invalid types of '{}': it must be a list".format(k))
             for i in v:
                 if type(i) is not str:
-                    raise Invalid(node, "Invalid types of '{}[{}]': it must be a str".format(k, v.index(i)))
+                    raise colander.Invalid(
+                        node,
+                        "Invalid types of '{}[{}]': it must be a str".format(k, v.index(i))
+                    )
 
         return cstruct
 
 
-class FilterSchema(MappingSchema):
-    model = SchemaNode(String())
-    field = SchemaNode(String())
-    op = SchemaNode(String())
-    value = SchemaNode(FilterValue())
+class FilterSchema(colander.MappingSchema):
+    model = colander.SchemaNode(colander.String())
+    field = colander.SchemaNode(colander.String())
+    op = colander.SchemaNode(colander.String())
+    value = colander.SchemaNode(FilterValue())
 
 
-class SortingSchema(MappingSchema):
-    model = SchemaNode(String())
-    field = SchemaNode(String())
-    direction = SchemaNode(String())
+class SortingSchema(colander.MappingSchema):
+    model = colander.SchemaNode(colander.String())
+    field = colander.SchemaNode(colander.String())
+    direction = colander.SchemaNode(colander.String())
 
 
-class Filters(SequenceSchema):
+class Filters(colander.SequenceSchema):
     filter = FilterSchema()
 
 
-class Sorting(SequenceSchema):
+class Sorting(colander.SequenceSchema):
     sort = SortingSchema()
 
 
-class FieldsSchema(SequenceSchema):
-    fields = SchemaNode(String())
+class FieldsSchema(colander.SequenceSchema):
+    fields = colander.SchemaNode(colander.String())
 
 
-class FetchPayloadSchema(MappingSchema):
+class FetchPayloadSchema(colander.MappingSchema):
     filters = Filters(missing=[])
     sorting = Sorting(missing=[])
     fields = FieldsSchema(missing=[])
-    related = SchemaNode(RelatedSchema(), missing={})
+    related = colander.SchemaNode(RelatedSchema(), missing={})

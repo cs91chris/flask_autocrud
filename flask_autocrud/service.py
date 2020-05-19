@@ -1,22 +1,16 @@
-import flask
 import colander
-
-from flask import request
-from flask import current_app as cap
-from flask.views import MethodView
-
-from werkzeug.http import generate_etag
-from werkzeug.exceptions import NotImplemented
-from werkzeug.exceptions import MethodNotAllowed
-
+import flask
 import sqlalchemy_filters as sqlaf
+from flask import current_app as cap, request
+from flask.views import MethodView
+from flask_response_builder.dictutils import to_flatten
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import ScalarObjectAttributeImpl
+from werkzeug.exceptions import MethodNotAllowed, NotImplemented
+from werkzeug.http import generate_etag
 
-from flask_response_builder.dictutils import to_flatten
-
-from .qs2sqla import Qs2Sqla
 from .config import HttpStatus as status
+from .qs2sqla import Qs2Sqla
 from .validators import FetchPayloadSchema
 
 
@@ -51,8 +45,6 @@ class Service(MethodView):
         """
         @self._response.no_content
         def _delete():
-            mime_type, _ = self._response.get_mimetype_accept()
-
             model = self._model
             session = self._db.session()
             resource = model.query.get(resource_id)

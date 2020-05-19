@@ -1,8 +1,6 @@
 # noinspection PyUnresolvedReferences
-from gunicorn.six import iteritems
-
-# noinspection PyUnresolvedReferences
 from gunicorn.app.base import BaseApplication
+from six import iteritems
 
 
 class StandaloneApplication(BaseApplication):
@@ -29,12 +27,13 @@ class StandaloneApplication(BaseApplication):
         """
 
         """
-        for key, value in iteritems(dict(
-            [
-                (k, v) for k, v in iteritems(self.options)
-                if k in self.cfg.settings and v is not None
-            ]
-        )):
+        options = {}
+
+        for k, v in iteritems(self.options):
+            if k in self.cfg.settings and v is not None:
+                options.update({k: v})
+
+        for key, value in iteritems(options):
             self.cfg.set(key.lower(), value)
 
     def load(self):

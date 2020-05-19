@@ -1,7 +1,6 @@
 from collections import namedtuple
 
-from werkzeug.routing import FloatConverter
-from werkzeug.routing import UnicodeConverter
+from werkzeug.routing import FloatConverter, UnicodeConverter
 
 
 class HttpStatus:

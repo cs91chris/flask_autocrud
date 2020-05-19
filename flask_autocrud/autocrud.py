@@ -1,14 +1,12 @@
 from flask import Blueprint
-
+from flask_errors_handler import ErrorHandler
+from flask_response_builder import ResponseBuilder
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.ext.declarative import declarative_base
 
-from flask_errors_handler import ErrorHandler
-from flask_response_builder import ResponseBuilder
-
+from .config import set_default_config
 from .model import Model
 from .service import Service
-from .config import set_default_config
 
 
 class AutoCrud(object):

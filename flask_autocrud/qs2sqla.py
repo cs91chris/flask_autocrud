@@ -1,13 +1,9 @@
+import sqlalchemy_filters as sqlaf
 from sqlalchemy.exc import ArgumentError
 from sqlalchemy.orm import contains_eager
-
-import sqlalchemy_filters as sqlaf
 from sqlalchemy_filters import exceptions
 
-from .config import Syntax
-from .config import Fields
-from .config import default_syntax
-from .config import default_arguments
+from . import config
 
 
 class Qs2Sqla:
@@ -19,20 +15,20 @@ class Qs2Sqla:
         :param arguments:
         """
         self._model = model
-        self._syntax = syntax or default_syntax
-        self._arguments = arguments or default_arguments
+        self._syntax = syntax or config.default_syntax
+        self._arguments = arguments or config.default_arguments
 
-        if self._syntax and not isinstance(self._syntax, Syntax):
+        if self._syntax and not isinstance(self._syntax, config.Syntax):
             raise AttributeError(
                 "'{}' must be an instance of {}".format(
-                    self._syntax.__name__, Syntax.__name__
+                    self._syntax.__name__, config.Syntax.__name__
                 )
             )
 
-        if self._arguments and not issubclass(self._arguments, Fields):
+        if self._arguments and not issubclass(self._arguments, config.Fields):
             raise AttributeError(
                 "'{}' must be a subclass of {}".format(
-                    self._arguments.__name__, Fields.__name__
+                    self._arguments.__name__, config.Fields.__name__
                 )
             )
 
@@ -52,14 +48,19 @@ class Qs2Sqla:
         """
         return self._arguments
 
-    def clear_empty(self, l, sep=None):
+    def clear_empty(self, value, sep=None):
         """
 
-        :param l:
+        :param value:
         :param sep:
         :return:
         """
-        return [i for i in l.split(sep or self._syntax.SEP) if i != ""]
+        ret = []
+        for v in value.split(sep or self._syntax.SEP):
+            if v != "":
+                ret.append(v)
+
+        return ret
 
     def clear_escape(self, i, escape=None):
         """

@@ -1,13 +1,12 @@
-import yaml
 import argparse
 
+import yaml
+from flask import Flask
+from flask_errors_handler import ErrorHandler
+from flask_sqlalchemy import SQLAlchemy
 from yaml.error import YAMLError
 
-from flask import Flask
-
 from flask_autocrud import AutoCrud
-from flask_sqlalchemy import SQLAlchemy
-from flask_errors_handler import ErrorHandler
 
 try:
     from .gunicorn import StandaloneApplication
