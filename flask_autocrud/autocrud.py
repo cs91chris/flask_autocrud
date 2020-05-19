@@ -19,7 +19,6 @@ class AutoCrud(object):
         :param builder:
         :param error:
         """
-        self._app = app
         self._db = db
         self._api = None
         self._models = {}
@@ -28,7 +27,7 @@ class AutoCrud(object):
 
         if app is not None:
             self.init_app(
-                self._app, self._db,
+                app, self._db,
                 models=models, builder=builder, error=error,
                 **kwargs
             )
@@ -76,7 +75,6 @@ class AutoCrud(object):
         :return:
         """
         self._db = db
-        self._app = app
         self._response_error = error or ErrorHandler()
         self._response_builder = builder or ResponseBuilder()
 
@@ -86,11 +84,11 @@ class AutoCrud(object):
         if not isinstance(self._response_error, ErrorHandler):
             raise AttributeError("'error' must be instance of '{}'".format(ErrorHandler))
 
-        set_default_config(self._app)
-        self._response_builder.init_app(self._app)
-        self._response_error.init_app(self._app, response=self._response_builder.on_accept())
+        set_default_config(app)
+        self._response_builder.init_app(app)
+        self._response_error.init_app(app, response=self._response_builder.on_accept())
 
-        subdomain = self._app.config['AUTOCRUD_SUBDOMAIN']
+        subdomain = app.config['AUTOCRUD_SUBDOMAIN']
         self._api = Blueprint('flask_autocrud', __name__, subdomain=subdomain)
 
         if models is not None:
@@ -99,31 +97,33 @@ class AutoCrud(object):
                     raise AttributeError(
                         "'{}' must be both a subclass of {} and of {}".format(m, db.Model, Model)
                     )
-                self._register_model(m, **kwargs)
+                self._register_model(m, app.config, **kwargs)
         else:
-            schema = self._app.config['AUTOCRUD_DATABASE_SCHEMA']
+            schema = app.config['AUTOCRUD_DATABASE_SCHEMA']
             automap_model = automap_base(declarative_base(cls=(db.Model, Model)))
             automap_model.prepare(self._db.engine, reflect=True, schema=schema)
 
             for model in automap_model.classes:
-                self._register_model(model, **kwargs)
-                if self._app.config['AUTOCRUD_READ_ONLY']:
+                self._register_model(model, app.config, **kwargs)
+                if app.config['AUTOCRUD_READ_ONLY']:
                     model.__methods__ = {'OPTION', 'HEAD', 'GET', 'FETCH'}
 
-                if not self._app.config['AUTOCRUD_FETCH_ENABLED']:
+                if not app.config['AUTOCRUD_FETCH_ENABLED']:
                     model.__methods__ -= {'FETCH'}
 
-        if self._app.config['AUTOCRUD_RESOURCES_URL_ENABLED']:
-            self._register_resources_route()
+        if app.config['AUTOCRUD_RESOURCES_URL_ENABLED']:
+            self._register_resources_route(
+                app.config['AUTOCRUD_BASE_URL'] + app.config['AUTOCRUD_RESOURCES_URL']
+            )
 
         self._response_error.api_register(self._api)
-        self._app.register_blueprint(self._api)
+        app.register_blueprint(self._api)
 
         if not hasattr(app, 'extensions'):
             app.extensions = dict()
         app.extensions['autocrud'] = self
 
-    def _register_model(self, model, **kwargs):
+    def _register_model(self, model, conf, **kwargs):
         """
 
         :param model:
@@ -131,7 +131,7 @@ class AutoCrud(object):
         class_name = model.__name__
         if model.__url__ is None:
             model.__url__ = "{}/{}".format(
-                self._app.config['AUTOCRUD_BASE_URL'],
+                conf['AUTOCRUD_BASE_URL'],
                 class_name.lower()
             )
 
@@ -145,20 +145,20 @@ class AutoCrud(object):
             }
         ).as_view(class_name)
 
-        def add_route(url='', methods=None, **kwargs):
+        def add_route(url='', methods=None, **params):
             self._api.add_url_rule(
                 model.__url__ + url,
                 view_func=view,
                 methods=methods,
                 strict_slashes=False,
-                **kwargs
+                **params
             )
 
         add_route(methods=['POST', 'FETCH'])
         add_route(defaults={'resource_id': None})
 
-        if self._app.config['AUTOCRUD_METADATA_ENABLED'] is True:
-            add_route(self._app.config['AUTOCRUD_METADATA_URL'])
+        if conf['AUTOCRUD_METADATA_ENABLED'] is True:
+            add_route(conf['AUTOCRUD_METADATA_URL'])
 
         self._models[model.__name__] = model
         pk = model.columns().get(model.primary_key_field())
@@ -166,13 +166,11 @@ class AutoCrud(object):
         add_route('/<{}:{}>'.format(pk_type, 'resource_id'), model.__methods__ - {'POST', 'FETCH'})
         add_route('/<{}:{}>/<path:subresource>'.format(pk_type, 'resource_id'), {'GET'})
 
-    def _register_resources_route(self):
+    def _register_resources_route(self, url):
         """
 
         :return:
         """
-        url = self._app.config['AUTOCRUD_BASE_URL'] + self._app.config['AUTOCRUD_RESOURCES_URL']
-
         @self._api.route(url)
         @self.response_builder.on_accept()
         def index():
