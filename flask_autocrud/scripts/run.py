@@ -4,13 +4,33 @@ import click
 import yaml
 from flask import Flask
 from flask_errors_handler import ErrorHandler
+from flask_logify import FlaskLogging
+from flask_response_builder import ResponseBuilder
 from flask_sqlalchemy import SQLAlchemy
 from yaml.error import YAMLError
 
 from flask_autocrud import AutoCrud
-from flask_autocrud.scripts import wsgi_factory, DEFAULT_WSGI
+from flask_autocrud.scripts import DEFAULT_WSGI, wsgi_factory
 
 wsgi_types = click.Choice(DEFAULT_WSGI, case_sensitive=False)
+
+
+def create_app(config=None):
+    """
+
+    :param config:
+    :return:
+    """
+    app = Flask(__name__)
+    app.config.update(config or {})
+
+    FlaskLogging(app)
+    db = SQLAlchemy(app)
+    builder = ResponseBuilder(app)
+    error = ErrorHandler(app, response=builder.on_accept())
+    AutoCrud(app, db, builder=builder, error=error)
+
+    return app
 
 
 @click.command()
@@ -57,15 +77,9 @@ def main(database, config, log_config, bind, verbose, wsgi_server):
     if log_config is not None:
         config['app']['LOG_FILE_CONF'] = log_config
 
-    app = Flask(__name__)
-    app.config.update(config.get('app', {}))
-
-    error = ErrorHandler(app)
-    error.api_register(app)
-    AutoCrud(app, SQLAlchemy(app), error=error)
-
-    wsgi_class = wsgi_factory(wsgi_server if wsgi_server else 'builtin')
-    wsgi_class(app, options=config.get('wsgi', {})).run()
+    app = create_app(config.get('app'))
+    Standalone = wsgi_factory(wsgi_server if wsgi_server else 'builtin')
+    Standalone(app, options=config.get('wsgi', {})).run()
 
 
 if __name__ == '__main__':
