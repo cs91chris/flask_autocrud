@@ -245,12 +245,14 @@ class Service(MethodView):
 
         if cap.config['AUTOCRUD_EXPORT_ENABLED'] is True:
             if qsqla.arguments.scalar.export in request.args:
-                filename = request.args.get(qsqla.arguments.scalar.export) or "{}{}{}".format(
+                filename = request.args.get(qsqla.arguments.scalar.export)
+                filename = filename or "{}{}{}".format(
                     self._model.__name__,
                     "_{}".format(page) if page else "",
                     "_{}".format(limit) if limit else ""
                 )
-                return self._response.csv(response, filename=filename)
+                csv_builder = self._response.csv(filename=filename)
+                return csv_builder(data=response)
 
         response = {
             model.__name__ + model.collection_suffix: response,

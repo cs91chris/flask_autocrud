@@ -12,6 +12,7 @@ def create_app(m=None, conf=None):
             return self.open(url, method='FETCH', *args, **kwargs)
 
     _app = Flask(__name__)
+    _app.config['DEBUG'] = True
     _app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite:///tests/db.sqlite3'
     _app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     _app.config['ERROR_FORCE_CONTENT_TYPE'] = False
