@@ -1,5 +1,6 @@
-import argparse
+import os
 
+import click
 import yaml
 from flask import Flask
 from flask_errors_handler import ErrorHandler
@@ -7,46 +8,54 @@ from flask_sqlalchemy import SQLAlchemy
 from yaml.error import YAMLError
 
 from flask_autocrud import AutoCrud
+from flask_autocrud.scripts import wsgi_factory, DEFAULT_WSGI
 
-try:
-    from .gunicorn import StandaloneApplication
-except (ModuleNotFoundError, ImportError):
-    try:
-        from .waitress import StandaloneApplication
-    except (ModuleNotFoundError, ImportError):
-        from .default import StandaloneApplication
+wsgi_types = click.Choice(DEFAULT_WSGI, case_sensitive=False)
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-D', '--database', default=None)
-    parser.add_argument('-d', '--debug', action='store_true')
-    parser.add_argument('-b', '--bind', default='0.0.0.0:5000')
-    parser.add_argument('-w', '--workers', default=1)
-    parser.add_argument('-c', '--config', default=None)
-    args = parser.parse_args()
+@click.command()
+@click.option('-v', '--verbose', is_flag=True, flag_value=True, default=False, help='enable debug mode')
+@click.option('-d', '--database', required=True, help='database string connection')
+@click.option('-c', '--config', default=None, help='app yaml configuration file')
+@click.option('-l', '--log-config', default=None, help='alternative log yaml configuration file')
+@click.option('-w', '--wsgi-server', default=None, type=wsgi_types, help='name of wsgi server to use')
+@click.option('-b', '--bind', default='127.0.0.1:5000', help='address to bind', show_default=True)
+def main(database, config, log_config, bind, verbose, wsgi_server):
+    """
 
-    if args.config is not None:
+    :param database: database string connection
+    :param config: app and wsgi configuration file
+    :param log_config: log configuration file
+    :param bind: address to bind
+    :param verbose: enable debug mode
+    :param wsgi_server: wsgi server chose
+    :return: never returns
+    """
+    if config is not None:
         try:
-            with open(args.config) as f:
+            with open(config) as f:
                 config = yaml.safe_load(f)
-        except (FileNotFoundError, YAMLError) as exc:
+        except (OSError, YAMLError) as e:
             import sys
-            print(exc, file=sys.stderr)
+            print(e, file=sys.stderr)
             sys.exit(1)
     else:
-        config = {
-            'app': {
-                'DEBUG': args.debug,
-                'SQLALCHEMY_DATABASE_URI': args.database,
-                'SQLALCHEMY_TRACK_MODIFICATIONS': False
+        env = os.environ.get('FLASK_ENV')
+        config = dict(
+            app={
+                'DEBUG': verbose,
+                'SQLALCHEMY_DATABASE_URI': database,
+                'SQLALCHEMY_TRACK_MODIFICATIONS': False,
+                'ENV': env or ('development' if verbose else 'production')
             },
-            'wsgi': {
-                'bind': args.bind,
-                'workers': args.workers,
-                'debug': args.debug
+            wsgi={
+                'bind': bind,
+                'debug': verbose,
             }
-        }
+        )
+
+    if log_config is not None:
+        config['app']['LOG_FILE_CONF'] = log_config
 
     app = Flask(__name__)
     app.config.update(config.get('app', {}))
@@ -55,7 +64,8 @@ def main():
     error.api_register(app)
     AutoCrud(app, SQLAlchemy(app), error=error)
 
-    StandaloneApplication(app, config.get('wsgi', {})).run()
+    wsgi_class = wsgi_factory(wsgi_server if wsgi_server else 'builtin')
+    wsgi_class(app, options=config.get('wsgi', {})).run()
 
 
 if __name__ == '__main__':
