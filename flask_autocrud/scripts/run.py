@@ -79,7 +79,7 @@ def main(database, config, log_config, bind, verbose, wsgi_server):
 
     app = create_app(config.get('app'))
     Standalone = wsgi_factory(wsgi_server if wsgi_server else 'builtin')
-    Standalone(app, options=config.get('wsgi', {})).run()
+    Standalone(app, options=config.get('wsgi')).run()
 
 
 if __name__ == '__main__':

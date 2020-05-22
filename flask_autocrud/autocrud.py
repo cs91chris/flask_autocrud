@@ -2,7 +2,6 @@ from flask import Blueprint
 from flask_errors_handler import ErrorHandler
 from flask_response_builder import ResponseBuilder
 from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.ext.declarative import declarative_base
 
 from .config import set_default_config
 from .model import Model
@@ -102,7 +101,7 @@ class AutoCrud(object):
                 self._register_model(m, app.config, **kwargs)
         else:
             schema = app.config['AUTOCRUD_DATABASE_SCHEMA']
-            automap_model = automap_base(declarative_base(cls=(db.Model, Model)))
+            automap_model = automap_base(cls=(db.Model, Model))
             automap_model.prepare(self._db.engine, reflect=True, schema=schema)
 
             for model in automap_model.classes:

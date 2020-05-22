@@ -2,7 +2,6 @@ from flask import Flask
 from flask.testing import FlaskClient
 
 from flask_autocrud import AutoCrud
-
 from .models import db
 
 
