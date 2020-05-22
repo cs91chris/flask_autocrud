@@ -5,7 +5,6 @@ from flask import current_app as cap, request
 from flask.views import MethodView
 from flask_response_builder.dictutils import to_flatten
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm.attributes import ScalarObjectAttributeImpl
 from werkzeug.exceptions import MethodNotAllowed, NotImplemented
 from werkzeug.http import generate_etag
 
@@ -159,8 +158,7 @@ class Service(MethodView):
         qsqla = Qs2Sqla(model, self.syntax, self.arguments)
         if qsqla.arguments.scalar.extended in request.args:
             for k, v in model.related().items():
-                if isinstance(v['instance'].impl, ScalarObjectAttributeImpl):
-                    related.update({k: "*"})
+                related.update({k: "*"})
 
         if resource_id is not None:
             query, _ = qsqla.dict2sqla(dict(filters=filter_by_id, related=related))

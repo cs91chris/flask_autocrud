@@ -1,5 +1,3 @@
-import collections
-
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm.mapper import Mapper
 from sqlalchemy.orm.properties import ColumnProperty
@@ -28,7 +26,7 @@ class Model(object):
         return str(getattr(self, self.primary_key_field()))
 
     @classmethod
-    def _load_cols(cls):
+    def _load_columns(cls):
         """
 
         """
@@ -38,11 +36,10 @@ class Model(object):
         for i in cls.__dict__:
             if not (i.startswith('_') or i in cls.__hidden__):
                 col = getattr(cls, i)
-                if not isinstance(col, collections.Callable):
-                    if isinstance(col.comparator, ColumnProperty.Comparator):
-                        cls.__cols__[i] = col
-                        if col.primary_key:
-                            cls.__pks__.append(i)
+                if isinstance(col.comparator, ColumnProperty.Comparator):
+                    cls.__cols__[i] = col
+                    if col.primary_key:
+                        cls.__pks__.append(i)
 
     @classmethod
     def _load_related(cls):
@@ -52,26 +49,26 @@ class Model(object):
         cls.__rels__ = {}
 
         for r in inspect(cls).relationships:
-            if isinstance(r.argument, Mapper):
-                key = r.argument.class_.__name__
-                columns = r.argument.class_().columns()
-            else:
-                key = r.argument.__name__
-                columns = r.argument.columns()
+            try:
+                rel = r.argument.class_
+            except AttributeError:
+                rel = r.argument
 
+            key = rel.__name__
+            columns = rel().columns(r.uselist)
             instance = getattr(cls, r.key)
             cls.__rels__.update({key: dict(instance=instance, columns=columns)})
 
     @classmethod
-    def columns(cls):
+    def columns(cls, pk_only=False):
         """
 
         :return:
         """
         if cls.__cols__ is None:
-            cls._load_cols()
+            cls._load_columns()
 
-        return cls.__cols__
+        return cls.__pks__ if pk_only else cls.__cols__
 
     @classmethod
     def required(cls):
@@ -119,7 +116,7 @@ class Model(object):
         :return:
         """
         if cls.__pks__ is None:
-            cls._load_cols()
+            cls._load_columns()
 
         return cls.__pks__[0]
 
