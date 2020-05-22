@@ -30,7 +30,13 @@ class Service(MethodView):
         if request.method not in methods:
             raise MethodNotAllowed(valid_methods=list(methods))
 
-        controller = getattr(self, request.method.lower(), None)
+        hdr = request.headers.get('X-HTTP-Method-Override') or ''
+        if request.method == 'HEAD':
+            name = hdr if hdr.upper() == 'FETCH' else 'GET'
+        else:
+            name = hdr if hdr.upper() == 'POST' else request.method
+
+        controller = getattr(self, name.lower(), None)
         if controller is None:
             raise NotImplemented()
 
@@ -188,11 +194,15 @@ class Service(MethodView):
             else:
                 data['filters'] += filter_by_id
 
-        return self._build_response_list(model, builder, {**data, 'related': related}, error)
+        return self._build_response_list(
+            model, builder, {**data, 'related': related}, error,
+            only_head=(resource_id is None and request.method == 'HEAD')
+        )
 
-    def fetch(self):
+    def fetch(self, **kwargs):
         """
 
+        :param kwargs: not used here, but avoid error
         :return:
         """
         _, builder = self._response.get_mimetype_accept()
@@ -204,15 +214,19 @@ class Service(MethodView):
             flask.abort(status.UNPROCESSABLE_ENTITY, response=exc.asdict())
             return  # only to prevent warning
 
-        return self._build_response_list(self._model, builder, data)
+        return self._build_response_list(
+            self._model, builder, data,
+            only_head=(request.method == 'HEAD')
+        )
 
-    def _build_response_list(self, model, builder, data, error=None):
+    def _build_response_list(self, model, builder, data, error=None, only_head=False):
         """
 
         :param model:
         :param builder:
         :param data:
         :param error:
+        :param only_head:
         :return:
         """
         qsqla = Qs2Sqla(model, self.syntax, self.arguments)
@@ -231,11 +245,17 @@ class Service(MethodView):
             flask.abort(status.BAD_REQUEST, response=dict(invalid=invalid))
 
         query, pagination = sqlaf.apply_pagination(query, page, limit)
-        result = query.all()
 
-        response = []
+        if only_head is True:
+            return self._response.no_content(
+                lambda *arg: ({}, self._pagination_headers(pagination)[0])
+            )()
+
         links_enabled = cap.config['AUTOCRUD_EXPORT_ENABLED'] is False \
             or qsqla.arguments.scalar.export not in request.args
+
+        response = []
+        result = query.all()
 
         for r in result:
             if qsqla.arguments.scalar.as_table in request.args:
