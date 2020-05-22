@@ -170,22 +170,30 @@ class Model(object):
 
         :return:
         """
+        related = {}
+        fields = []
+
+        for r in inspect(cls).relationships:
+            rel = r.argument.class_ if r.uselist else r.argument
+            related.update({rel.__name__: rel.__url__})
+
+        for col, c in cls.columns().items():
+            fields.append(dict(
+                name=col,
+                type=c.type.python_type.__name__,
+                key=c.primary_key,
+                nullable=c.nullable,
+                unique=c.unique,
+                description=c.comment
+            ))
+
         return dict(
             url=cls.__url__,
             name=cls.__name__,
             methods=list(cls.__methods__),
             description=cls.__description__ or cls.__table__.comment,
-            fields=[
-                dict(
-                    name=col,
-                    type=c.type.python_type.__name__,
-                    key=c.primary_key,
-                    autoincrement=c.autoincrement,
-                    nullable=c.nullable,
-                    unique=c.unique,
-                    description=c.comment
-                ) for col, c in cls.columns().items()
-            ]
+            related=related,
+            fields=fields
         )
 
     def to_dict(self, links=False):
@@ -221,19 +229,19 @@ class Model(object):
         :return:
         """
         link_dict = dict(self=self.resource_uri())
-
         for r in inspect(self.__class__).relationships:
-            if not r.uselist:
-                instance = getattr(self, r.key)
-                if instance:
-                    key = r.argument.__name__
-                    link_dict[key] = instance.resource_uri()
-            elif isinstance(r.argument, Mapper):
-                key = r.argument.class_.__name__
-                link_dict[key] = "{}{}".format(
-                    self.resource_uri(),
-                    r.argument.class_.__url__
-                )
+            if isinstance(r.argument, Mapper):
+                if r.uselist:
+                    key = r.argument.class_.__name__
+                    link_dict[key] = "{}{}".format(
+                        self.resource_uri(),
+                        r.argument.class_.__url__
+                    )
+                else:
+                    instance = getattr(self, r.key)
+                    if instance:
+                        key = r.argument.__name__
+                        link_dict[key] = instance.resource_uri()
 
         return link_dict
 
