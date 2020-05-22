@@ -96,7 +96,7 @@ def test_hateoas(client):
 
 
 def test_extended(client):
-    res = client.get('/myalbum/5?_extended')
+    res = client.get('/myalbum/5?_related')
     assert res.status_code == 200
 
     data = res.get_json()
@@ -105,7 +105,7 @@ def test_extended(client):
 
 
 def test_extended_list(client):
-    res = client.get('/myalbum?_extended')
+    res = client.get('/myalbum?_related=artists')
     assert res.status_code == 200
 
     data = res.get_json()['albumsList'][0]
@@ -198,7 +198,7 @@ def test_filter(client):
 
 
 def test_subresource(client):
-    res = client.get('/artists/1/myalbum?_extended')
+    res = client.get('/artists/1/myalbum?_related')
     assert res.status_code == 200
 
     data = res.get_json()['albumsList'][0]

@@ -21,7 +21,7 @@ def test_pagination(client):
 
 
 def test_extended(client):
-    res = client.get('/track/5?_extended')
+    res = client.get('/track/5?_related')
     assert res.status_code == 200
 
     data = res.get_json()
@@ -34,7 +34,7 @@ def test_extended(client):
 
 
 def test_extended_list(client):
-    res = client.get('/track?_extended')
+    res = client.get('/track?_related')
     assert res.status_code == 206
 
     tracks = 'TrackList'
@@ -188,11 +188,11 @@ def test_query_string_invalid(client):
 
 
 def test_check_etag_list(client):
-    res = client.get('/album/5/track?_extended')
+    res = client.get('/album/5/track?_related')
 
     etag = res.headers.get('ETag')
     assert res.status_code == 200
     assert etag is not None
 
-    res = client.get('/album/5/track?_extended', headers={'If-None-Match': etag})
+    res = client.get('/album/5/track?_related', headers={'If-None-Match': etag})
     assert res.status_code == 304

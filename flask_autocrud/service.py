@@ -156,9 +156,11 @@ class Service(MethodView):
                 flask.abort(status.NOT_FOUND)
 
         qsqla = Qs2Sqla(model, self.syntax, self.arguments)
-        if qsqla.arguments.scalar.extended in request.args:
-            for k, v in model.related().items():
-                related.update({k: "*"})
+        if qsqla.arguments.scalar.related in request.args:
+            extended = request.args[qsqla.arguments.scalar.related] or ''
+            rels = [r for r in extended.split(qsqla.syntax.SEP) if r]
+            model_related = rels if len(rels) > 0 else model.related().keys()
+            related.update({k: "*" for k in model_related})
 
         if resource_id is not None:
             query, _ = qsqla.dict2sqla(dict(filters=filter_by_id, related=related))

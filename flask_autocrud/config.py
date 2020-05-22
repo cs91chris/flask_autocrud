@@ -26,7 +26,7 @@ ALLOWED_METHODS = {
     'DELETE',
     'FETCH',
     'HEAD',
-    'OPTIONS'
+    'OPTIONS',
 }
 
 
@@ -84,7 +84,7 @@ scalarFields = namedtuple(
         'page',
         'limit',
         'export',
-        'extended',
+        'related',
         'as_table',
     )
 )
@@ -103,7 +103,7 @@ class Fields:
         page='_page',
         limit='_limit',
         export='_export',
-        extended='_extended',
+        related='_related',
         as_table='_as_table',
     )
 

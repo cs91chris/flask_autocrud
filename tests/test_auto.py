@@ -223,7 +223,7 @@ def test_export(client):
 
 
 def test_subresource(client):
-    res = client.get('/album/5/track?_extended')
+    res = client.get('/album/5/track?_related')
     assert res.status_code == 200
 
     data = res.get_json()['TrackList'][0]
