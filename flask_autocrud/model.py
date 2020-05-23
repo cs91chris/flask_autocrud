@@ -42,11 +42,12 @@ class Model(object):
                         cls.__pks__.append(i)
 
     @classmethod
-    def _load_related(cls):
+    def _load_related(cls, **kwargs):
         """
 
         """
         cls.__rels__ = {}
+        pk_only = kwargs.get('pk_only') or False
 
         for r in inspect(cls).relationships:
             try:
@@ -55,7 +56,7 @@ class Model(object):
                 rel = r.argument
 
             key = rel.__name__
-            columns = rel().columns(r.uselist)
+            columns = rel().columns(pk_only and r.uselist)
             instance = getattr(cls, r.key)
             cls.__rels__.update({key: dict(instance=instance, columns=columns)})
 
@@ -121,14 +122,14 @@ class Model(object):
         return cls.__pks__[0]
 
     @classmethod
-    def related(cls, name=None):
+    def related(cls, name=None, **kwargs):
         """
 
         :param name:
         :return:
         """
         if not cls.__rels__:
-            cls._load_related()
+            cls._load_related(**kwargs)
 
         if name is None:
             return cls.__rels__

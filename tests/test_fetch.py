@@ -95,6 +95,52 @@ def test_filter(client):
     assert res.headers.get('Content-Length') == '0'
     assert res.headers.get('Pagination-Count') is not None
 
+    res = client.fetch(
+        '/customer',
+        json={
+            "fields": [
+                "Address",
+                "City"
+            ],
+            "related": {
+                "Employee": [
+                    "FirstName",
+                    "LastName"
+                ],
+                "Invoice": [
+                    "*"
+                ]
+            },
+            "filters": [
+                {
+                    "model": "Customer",
+                    "field": "SupportRepId",
+                    "op": "==",
+                    "value": 5
+                },
+                {
+                    "model": "Invoice",
+                    "field": "Total",
+                    "op": ">",
+                    "value": 6
+                }
+            ],
+            "sorting": [
+                {
+                    "model": "Invoice",
+                    "field": "Total",
+                    "direction": "asc"
+                },
+                {
+                    "model": "Customer",
+                    "field": "Address",
+                    "direction": "desc"
+                }
+            ]
+        }
+    )
+    assert res.status_code == 200
+
 
 def test_validators(client):
     res = client.fetch(

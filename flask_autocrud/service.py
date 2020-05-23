@@ -197,7 +197,7 @@ class Service(MethodView):
                 data['filters'] += filter_by_id
 
         return self._build_response_list(
-            model, builder, {**data, 'related': related}, error,
+            model, builder, {**data, 'related': related}, error, pk_only=True,
             only_head=(resource_id is None and flask.request.method == 'HEAD')
         )
 
@@ -219,10 +219,10 @@ class Service(MethodView):
             return  # only to prevent warning
 
         return self._build_response_list(
-            self._model, builder, data, only_head=only_head
+            self._model, builder, data, only_head=only_head, pk_only=False
         )
 
-    def _build_response_list(self, model, builder, data, error=None, only_head=False):
+    def _build_response_list(self, model, builder, data, error=None, only_head=False, **kwargs):
         """
 
         :param model: self model or subresource model
@@ -241,7 +241,7 @@ class Service(MethodView):
         )
         invalid += error
 
-        query, error = qsqla.dict2sqla(data)
+        query, error = qsqla.dict2sqla(data, pk_only=kwargs.get('pk_only'))
         invalid += error
 
         if len(invalid) > 0:

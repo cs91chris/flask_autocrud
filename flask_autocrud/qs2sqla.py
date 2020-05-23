@@ -192,21 +192,23 @@ class Qs2Sqla:
                 invalid.append(k)
         return resp, invalid
 
-    def dict2sqla(self, data):
+    def dict2sqla(self, data, **kwargs):
         """
 
         :param data:
         :return:
         """
         invalid = []
-        query = self._model.query
-        fields = data.get('fields') or list(self._model.columns().keys())
+        model = self._model
+        query = model.query
+
+        fields = data.get('fields') or list(model.columns().keys())
         related = data.get('related') or {}
         filters = data.get('filters') or []
         sort = data.get('sorting') or []
 
         for k in fields:
-            if k not in self._model.columns().keys():
+            if k not in model.columns().keys():
                 invalid.append(k)
 
         if len(invalid) == 0 and len(fields) > 0:
@@ -216,7 +218,7 @@ class Qs2Sqla:
                 invalid.append(fields)
 
         for k in related.keys():
-            instance, columns = self._model.related(k)
+            instance, columns = model.related(k, pk_only=kwargs.get('pk_only'))
             if instance is not None:
                 _columns = related.get(k)
                 try:
