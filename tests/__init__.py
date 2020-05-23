@@ -2,7 +2,7 @@ from flask import Flask
 from flask.testing import FlaskClient
 
 from flask_autocrud import AutoCrud
-from .models import db
+from tests.models import db
 
 
 def create_app(m=None, conf=None):

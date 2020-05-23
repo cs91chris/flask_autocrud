@@ -82,9 +82,9 @@ class Service(MethodView):
             resource = model(**data)
             res = self._add_resource(resource)
         except IntegrityError:
+            res = {}  # prevent warning
             self._db.session().rollback()
             flask.abort(status.CONFLICT)
-            return  # only to prevent warning
 
         return self._response_with_etag(
             builder, (res, status.CREATED, self._location_header(resource)), res
@@ -155,7 +155,7 @@ class Service(MethodView):
             )
         ]
 
-        if flask.request.path.endswith(cap.config['AUTOCRUD_METADATA_URL']):
+        if resource_id is None and flask.request.path.endswith(cap.config['AUTOCRUD_METADATA_URL']):
             return self._response.build_response(builder, model.description())
 
         if subresource is not None:
@@ -191,7 +191,7 @@ class Service(MethodView):
             data, error = {}, []
 
         if resource_id is not None:
-            if data.get('filters') is None:
+            if not data.get('filters'):
                 data['filters'] = filter_by_id
             else:
                 data['filters'] += filter_by_id
@@ -215,8 +215,8 @@ class Service(MethodView):
             schema = FetchPayloadSchema()
             data = schema.deserialize(flask.request.get_json() or {})
         except colander.Invalid as exc:
+            data = {}  # prevent warning
             flask.abort(status.UNPROCESSABLE_ENTITY, response=exc.asdict())
-            return  # only to prevent warning
 
         return self._build_response_list(
             self._model, builder, data, only_head=only_head, pk_only=False
@@ -258,6 +258,7 @@ class Service(MethodView):
         result = query.all()
 
         for r in result:
+            print(flask.request.args)
             if qsqla.arguments.scalar.as_table in flask.request.args:
                 response += to_flatten(r, to_dict=model.to_dict)
             else:
@@ -383,11 +384,6 @@ class Service(MethodView):
         :param pagination: pagination object
         :return:
         """
-        code = status.SUCCESS
-
-        if not pagination:
-            return {}, code
-
         total_results = pagination.total_results
         page_number = pagination.page_number
         num_pages = pagination.num_pages

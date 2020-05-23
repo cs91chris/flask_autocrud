@@ -219,23 +219,20 @@ class Qs2Sqla:
 
         for k in related.keys():
             instance, columns = model.related(k, pk_only=kwargs.get('pk_only'))
-            if instance is not None:
-                _columns = related.get(k)
-                try:
-                    if len(_columns) > 0 and _columns[0] != self._syntax.ALL:
-                        _invalid = list(set(related.get(k)) - set(columns))
-                        if len(_invalid) > 0:
-                            _columns = _invalid
-                            raise ArgumentError
-                    else:
-                        _columns = columns
+            _columns = related.get(k)
+            try:
+                if len(_columns) > 0 and _columns[0] != self._syntax.ALL:
+                    _invalid = list(set(related.get(k)) - set(columns))
+                    if len(_invalid) > 0:
+                        _columns = _invalid
+                        raise ArgumentError
+                else:
+                    _columns = columns
 
-                    query = query.join(instance, aliased=False)
-                    query = query.options(contains_eager(instance).load_only(*_columns))
-                except ArgumentError:
-                    invalid += _columns
-            else:
-                invalid.append(k)
+                query = query.join(instance, aliased=False)
+                query = query.options(contains_eager(instance).load_only(*_columns))
+            except ArgumentError:
+                invalid += _columns
 
         def apply(stm, flt, action):
             """

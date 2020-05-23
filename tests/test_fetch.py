@@ -155,7 +155,7 @@ def test_validators(client):
                 {
                     "mode": "Invoice",
                     "fiel": "InvoiceDate",
-                    "o": ">=",
+                    "op": "sign",
                     "valu": "2010-04-01T00:00:00"
                 }
             ],
@@ -205,14 +205,24 @@ def test_validators(client):
                     "op": "==",
                     "value": 1
                 }
+            ],
+            "sorting": [
+                {
+                    "model": "Artist",
+                    "field": "pluto",
+                    "direction": "invalid"
+                }
             ]
         }
     )
     assert res.status_code == 400
 
     data = res.get_json()['response']
-    assert 'invalid' in data and len(data['invalid']) == 1
-    assert 'pluto' in data['invalid']
+    assert 'invalid' in data and len(data['invalid']) == 2
+    assert all(e in data['invalid'] for e in (
+        'pluto',
+        'invalid',
+    ))
 
     res = client.fetch(
         '/customer',

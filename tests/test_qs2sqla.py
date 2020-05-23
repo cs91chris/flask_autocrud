@@ -19,6 +19,13 @@ def test_pagination(client):
     res = client.get('/artist?_page=1&_limit=5')
     assert_pagination(res, 206, '1', '5')
 
+    res = client.get('/artist?_page=3&_limit=100')
+    assert_pagination(res, 200, '3', '100')
+
+    res = client.get('/artist?_page=100&_limit=100')
+    assert res.status_code == 204
+    assert res.headers.get('Links') is None
+
 
 def test_extended(client):
     res = client.get('/track/5?_related')
@@ -31,6 +38,14 @@ def test_extended(client):
         "Genre",
         "MediaType"
     ))
+
+    res = client.get('/track/5?_related=Album')
+    assert res.status_code == 200
+
+    data = res.get_json()
+    assert data['TrackId'] == 5
+    assert 'Album' in data
+    assert 'MediaType' not in data
 
 
 def test_extended_list(client):
@@ -175,15 +190,18 @@ def test_null(client):
 
 
 def test_query_string_invalid(client):
-    res = client.get('/invoice?_fields=pippo&_sort=pluto&paperino=1')
+    res = client.get('/invoice?_fields=pippo&_sort=pluto&paperino=1&invalid=true&_page=a&_limit=a')
     assert res.status_code == 400
 
     data = res.get_json()['response']
-    assert 'invalid' in data and len(data['invalid']) == 3
+    assert 'invalid' in data and len(data['invalid']) == 6
     assert all(e in data['invalid'] for e in (
         'pippo',
         'pluto',
-        'paperino'
+        'paperino',
+        'invalid',
+        '_page',
+        '_limit',
     ))
 
 

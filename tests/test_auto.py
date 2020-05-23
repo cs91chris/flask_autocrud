@@ -1,5 +1,7 @@
 import pytest
+import flask
 
+from flask_errors_handler import ErrorHandler
 from . import create_app
 from . import assert_export
 
@@ -19,9 +21,26 @@ def test_app_runs(client):
     res = client.get('/')
     assert res.status_code == 404
 
+    # increase coverage
+    autocrud = client.application.extensions['autocrud']
+    assert isinstance(autocrud.blueprint, flask.Blueprint)
+    assert isinstance(autocrud.error_handler, ErrorHandler)
+    assert isinstance(autocrud.models, dict)
+    for m in autocrud.models.values():
+        assert print(m()) is None
+        assert isinstance(m.searchable(), list)
+
 
 def test_resources_list_json(client):
     res = client.get('/resources')
+    assert res.status_code == 200
+    assert res.headers.get('Content-Type') == 'application/json'
+
+    res = client.head('/artist')
+    assert res.status_code == 200
+    assert res.data == b''
+
+    res = client.get('/artist?_as_table')
     assert res.status_code == 200
     assert res.headers.get('Content-Type') == 'application/json'
 
@@ -80,6 +99,12 @@ def test_update(client):
         headers={'If-Match': etag}
     )
     assert res.status_code == 200
+
+    res = client.patch(
+        '/artist/10000000',
+        json={'Name': 'pippo3'}
+    )
+    assert res.status_code == 404
 
 
 def test_unprocessable_entity(client):
@@ -236,3 +261,6 @@ def test_subresource(client):
         "Genre",
         "MediaType"
     ))
+
+    res = client.get('/album/5/notfound')
+    assert res.status_code == 404
