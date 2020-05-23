@@ -1,7 +1,7 @@
 import colander
 import flask
 import sqlalchemy_filters as sqlaf
-from flask import current_app as cap, request
+from flask import current_app as cap
 from flask.views import MethodView
 from flask_response_builder.dictutils import to_flatten
 from sqlalchemy.exc import IntegrityError
@@ -27,14 +27,16 @@ class Service(MethodView):
         :param kwargs:
         """
         methods = self._model.__methods__
-        if request.method not in methods:
+        if flask.request.method not in methods:
             raise MethodNotAllowed(valid_methods=list(methods))
 
-        hdr = request.headers.get('X-HTTP-Method-Override') or ''
-        if request.method == 'HEAD':
-            name = hdr if hdr.upper() == 'FETCH' else 'GET'
+        hdr = flask.request.headers.get('X-HTTP-Method-Override') or ''
+        if flask.request.method == 'HEAD':
+            name = 'GET'
+        elif flask.request.method == 'POST':
+            name = hdr if hdr.upper() == 'FETCH' else 'POST'
         else:
-            name = hdr if hdr.upper() == 'POST' else request.method
+            name = flask.request.method
 
         controller = getattr(self, name.lower(), None)
         if controller is None:
@@ -120,7 +122,7 @@ class Service(MethodView):
         """
         model = self._model
         _, builder = self._response.get_mimetype_accept()
-        data = request.get_json() or {}
+        data = flask.request.get_json() or {}
         _, unknown = model.validate(data)
 
         if unknown:
@@ -153,7 +155,7 @@ class Service(MethodView):
             )
         ]
 
-        if request.path.endswith(cap.config['AUTOCRUD_METADATA_URL']):
+        if flask.request.path.endswith(cap.config['AUTOCRUD_METADATA_URL']):
             return self._response.build_response(builder, model.description())
 
         if subresource is not None:
@@ -162,8 +164,8 @@ class Service(MethodView):
                 flask.abort(status.NOT_FOUND)
 
         qsqla = Qs2Sqla(model, self.syntax, self.arguments)
-        if qsqla.arguments.scalar.related in request.args:
-            extended = request.args[qsqla.arguments.scalar.related] or ''
+        if qsqla.arguments.scalar.related in flask.request.args:
+            extended = flask.request.args[qsqla.arguments.scalar.related] or ''
             rels = [r for r in extended.split(qsqla.syntax.SEP) if r]
             model_related = rels if len(rels) > 0 else model.related().keys()
             related.update({k: "*" for k in model_related})
@@ -184,7 +186,7 @@ class Service(MethodView):
                 )
 
         if cap.config['AUTOCRUD_QUERY_STRING_FILTERS_ENABLED'] is True:
-            data, error = qsqla.parse(request.args)
+            data, error = qsqla.parse(flask.request.args)
         else:
             data, error = {}, []
 
@@ -196,7 +198,7 @@ class Service(MethodView):
 
         return self._build_response_list(
             model, builder, {**data, 'related': related}, error,
-            only_head=(resource_id is None and request.method == 'HEAD')
+            only_head=(resource_id is None and flask.request.method == 'HEAD')
         )
 
     def fetch(self, **kwargs):
@@ -206,17 +208,18 @@ class Service(MethodView):
         :return:
         """
         _, builder = self._response.get_mimetype_accept()
+        override_method = flask.request.headers.get('X-HTTP-Method-Override') or ''
+        only_head = override_method.upper() == 'HEAD'
 
         try:
             schema = FetchPayloadSchema()
-            data = schema.deserialize(request.get_json() or {})
+            data = schema.deserialize(flask.request.get_json() or {})
         except colander.Invalid as exc:
             flask.abort(status.UNPROCESSABLE_ENTITY, response=exc.asdict())
             return  # only to prevent warning
 
         return self._build_response_list(
-            self._model, builder, data,
-            only_head=(request.method == 'HEAD')
+            self._model, builder, data, only_head=only_head
         )
 
     def _build_response_list(self, model, builder, data, error=None, only_head=False):
@@ -233,7 +236,7 @@ class Service(MethodView):
         invalid = error or []
 
         page, limit, error = qsqla.get_pagination(
-            request.args,
+            flask.request.args,
             cap.config['AUTOCRUD_MAX_QUERY_LIMIT']
         )
         invalid += error
@@ -247,24 +250,24 @@ class Service(MethodView):
         query, pagination = sqlaf.apply_pagination(query, page, limit)
 
         if only_head is True:
-            hdr = self._pagination_headers(pagination)[0]
-            return self._response.no_content(lambda *arg: ({}, hdr))()
-
-        links_enabled = cap.config['AUTOCRUD_EXPORT_ENABLED'] is False \
-            or qsqla.arguments.scalar.export not in request.args
+            # return no content with headers and status code
+            hdr, code = self._pagination_headers(pagination)
+            return self._response.no_content(lambda *arg: (None, code, hdr))()
 
         response = []
         result = query.all()
 
         for r in result:
-            if qsqla.arguments.scalar.as_table in request.args:
+            if qsqla.arguments.scalar.as_table in flask.request.args:
                 response += to_flatten(r, to_dict=model.to_dict)
             else:
+                links_enabled = cap.config['AUTOCRUD_EXPORT_ENABLED'] is False or \
+                                qsqla.arguments.scalar.export not in flask.request.args
                 response.append(r.to_dict(links=links_enabled))
 
         if cap.config['AUTOCRUD_EXPORT_ENABLED'] is True:
-            if qsqla.arguments.scalar.export in request.args:
-                filename = request.args.get(qsqla.arguments.scalar.export)
+            if qsqla.arguments.scalar.export in flask.request.args:
+                filename = flask.request.args.get(qsqla.arguments.scalar.export)
                 filename = filename or "{}{}{}".format(
                     model.__name__,
                     "_{}".format(page) if page else "",
@@ -307,7 +310,7 @@ class Service(MethodView):
         :return:
         """
         model = self._model
-        data = request.get_json()
+        data = flask.request.get_json()
 
         if not data:
             flask.abort(status.BAD_REQUEST)
@@ -364,7 +367,7 @@ class Service(MethodView):
         page_size = pagination.page_size
 
         def format_link(p):
-            return "{}?{}={}&{}={}".format(request.path, args.page, p, args.limit, page_size)
+            return "{}?{}={}&{}={}".format(flask.request.path, args.page, p, args.limit, page_size)
 
         return dict(
             first=format_link(1) if page_number > 1 else None,
@@ -458,14 +461,14 @@ class Service(MethodView):
         :return:
         """
         if cap.config['AUTOCRUD_CONDITIONAL_REQUEST_ENABLED'] is True:
-            match = request.if_match
-            none_match = request.if_none_match
+            match = flask.request.if_match
+            none_match = flask.request.if_none_match
             etag = data if isinstance(data, str) else cls._compute_etag(data)
 
-            if request.method in ('GET', 'FETCH'):
+            if flask.request.method in ('GET', 'FETCH'):
                 if none_match and etag in none_match:
                     flask.abort(flask.Response(status=status.NOT_MODIFIED))
-            elif request.method in ('PUT', 'PATCH', 'DELETE'):
+            elif flask.request.method in ('PUT', 'PATCH', 'DELETE'):
                 if not match:
                     flask.abort(status.PRECONDITION_REQUIRED)
                 elif etag not in match:

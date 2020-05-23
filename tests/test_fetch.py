@@ -60,6 +60,41 @@ def test_filter(client):
     assert len(data[artists]) == 1
     assert data[artists][0].get('ArtistId') == 1
 
+    res = client.post(
+        '/artist',
+        json={
+            "filters": [
+                {
+                    "model": "Artist",
+                    "field": "ArtistId",
+                    "op": "==",
+                    "value": 1
+                }
+            ]
+        },
+        headers={'X-HTTP-Method-Override': 'FETCH'}
+    )
+    assert res.status_code == 200
+
+    res = client.fetch(
+        '/artist',
+        json={
+            "filters": [
+                {
+                    "model": "Artist",
+                    "field": "ArtistId",
+                    "op": "==",
+                    "value": 1
+                }
+            ]
+        },
+        headers={'X-HTTP-Method-Override': 'HEAD'}
+    )
+    assert res.status_code == 200
+    assert res.data == b''
+    assert res.headers.get('Content-Length') == '0'
+    assert res.headers.get('Pagination-Count') is not None
+
 
 def test_validators(client):
     res = client.fetch(
