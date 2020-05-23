@@ -248,11 +248,11 @@ class Service(MethodView):
             flask.abort(status.BAD_REQUEST, response=dict(invalid=invalid))
 
         query, pagination = sqlaf.apply_pagination(query, page, limit)
+        headers, code = self._pagination_headers(pagination)
 
-        if only_head is True:
+        if only_head is True or code == status.NO_CONTENT:
             # return no content with headers and status code
-            hdr, code = self._pagination_headers(pagination)
-            return self._response.no_content(lambda *arg: (None, code, hdr))()
+            return self._response.no_content(lambda *arg: (None, code, headers))()
 
         response = []
         result = query.all()
@@ -283,10 +283,7 @@ class Service(MethodView):
 
         etag = self._compute_etag(response)
         self._check_etag(etag)
-
-        return self._response_with_etag(
-            builder, (response, *self._pagination_headers(pagination)), etag
-        )
+        return self._response_with_etag(builder, (response, code, headers), etag)
 
     def _response_with_etag(self, builder, data, etag):
         """
@@ -366,6 +363,9 @@ class Service(MethodView):
         num_pages = pagination.num_pages
         page_size = pagination.page_size
 
+        if num_pages == 0:
+            return dict(first=None, last=None, next=None, prev=None)
+
         def format_link(p):
             return "{}?{}={}&{}={}".format(flask.request.path, args.page, p, args.limit, page_size)
 
@@ -393,19 +393,23 @@ class Service(MethodView):
         num_pages = pagination.num_pages
         page_size = pagination.page_size
 
-        if num_pages > 1 and total_results > page_size:
-            code = status.PARTIAL_CONTENT
-
-        if page_number == num_pages:
-            code = status.SUCCESS
-
-        return {
+        link_headers = {}
+        headers = {
             'Pagination-Count': total_results,
             'Pagination-Page': page_number,
             'Pagination-Num-Pages': num_pages,
             'Pagination-Page-Size': page_size,
-            **(cls._link_header(None, **cls._pagination_meta(pagination)) or {})
-        }, code
+        }
+
+        if page_number > num_pages > 0:
+            code = status.NO_CONTENT
+        elif num_pages == 0:
+            code = status.SUCCESS
+        else:
+            link_headers = cls._link_header(None, **cls._pagination_meta(pagination))
+            code = status.SUCCESS if page_number == num_pages else status.PARTIAL_CONTENT
+
+        return {**headers, **link_headers}, code
 
     @staticmethod
     def _link_header(resource=None, **kwargs):
