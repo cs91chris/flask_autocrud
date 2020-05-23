@@ -86,6 +86,7 @@ scalarFields = namedtuple(
         'export',
         'related',
         'as_table',
+        'no_links',
     )
 )
 
@@ -105,6 +106,7 @@ class Fields:
         export='_export',
         related='_related',
         as_table='_as_table',
+        no_links='_no_links'
     )
 
     vector = vectorFields(

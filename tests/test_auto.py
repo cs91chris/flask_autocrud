@@ -44,6 +44,12 @@ def test_resources_list_json(client):
     assert res.status_code == 200
     assert res.headers.get('Content-Type') == 'application/json'
 
+    res = client.get('/artist?_no_links')
+    data = res.get_json()
+    assert res.status_code == 200
+    assert res.headers.get('Content-Type') == 'application/json'
+    assert '_meta' not in data and '_links' not in data['ArtistList']
+
 
 def test_resources_list_xml(client):
     res = client.get(

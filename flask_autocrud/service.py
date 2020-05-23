@@ -50,6 +50,7 @@ class Service(MethodView):
         :param resource_id:
         :return:
         """
+
         @self._response.no_content
         def _delete():
             model = self._model
@@ -62,6 +63,7 @@ class Service(MethodView):
             self._check_etag(resource)
             session.delete(resource)
             session.commit()
+
         return _delete()
 
     def post(self):
@@ -235,6 +237,12 @@ class Service(MethodView):
         qsqla = Qs2Sqla(model, self.syntax, self.arguments)
         invalid = error or []
 
+        export_enabled = cap.config['AUTOCRUD_EXPORT_ENABLED']
+        links_enabled = not (
+            (export_enabled and qsqla.arguments.scalar.export in flask.request.args)
+            or qsqla.arguments.scalar.no_links in flask.request.args
+        )
+
         page, limit, error = qsqla.get_pagination(
             flask.request.args,
             cap.config['AUTOCRUD_MAX_QUERY_LIMIT']
@@ -258,15 +266,12 @@ class Service(MethodView):
         result = query.all()
 
         for r in result:
-            print(flask.request.args)
             if qsqla.arguments.scalar.as_table in flask.request.args:
                 response += to_flatten(r, to_dict=model.to_dict)
             else:
-                links_enabled = cap.config['AUTOCRUD_EXPORT_ENABLED'] is False or \
-                                qsqla.arguments.scalar.export not in flask.request.args
-                response.append(r.to_dict(links=links_enabled))
+                response.append(r.to_dict(links_enabled))
 
-        if cap.config['AUTOCRUD_EXPORT_ENABLED'] is True:
+        if export_enabled:
             if qsqla.arguments.scalar.export in flask.request.args:
                 filename = flask.request.args.get(qsqla.arguments.scalar.export)
                 filename = filename or "{}{}{}".format(
@@ -277,10 +282,9 @@ class Service(MethodView):
                 csv_builder = self._response.csv(filename=filename)
                 return csv_builder(data=response)
 
-        response = {
-            model.__name__ + model.collection_suffix: response,
-            '_meta': self._pagination_meta(pagination)
-        }
+        response = {model.__name__ + model.collection_suffix: response}
+        if links_enabled:
+            response.update({'_meta': self._pagination_meta(pagination)})
 
         etag = self._compute_etag(response)
         self._check_etag(etag)
@@ -391,8 +395,8 @@ class Service(MethodView):
 
         link_headers = {}
         headers = {
-            'Pagination-Count': total_results,
-            'Pagination-Page': page_number,
+            'Pagination-Count':     total_results,
+            'Pagination-Page':      page_number,
             'Pagination-Num-Pages': num_pages,
             'Pagination-Page-Size': page_size,
         }
