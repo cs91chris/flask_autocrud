@@ -222,11 +222,11 @@ class Service(MethodView):
     def _build_response_list(self, model, builder, data, error=None, only_head=False):
         """
 
-        :param model:
-        :param builder:
-        :param data:
-        :param error:
-        :param only_head:
+        :param model: self model or subresource model
+        :param builder: response builder
+        :param data: response list: status, header, body
+        :param error: previous error to add to response
+        :param only_head: enable HEAD method response
         :return:
         """
         qsqla = Qs2Sqla(model, self.syntax, self.arguments)
@@ -247,9 +247,8 @@ class Service(MethodView):
         query, pagination = sqlaf.apply_pagination(query, page, limit)
 
         if only_head is True:
-            return self._response.no_content(
-                lambda *arg: ({}, self._pagination_headers(pagination)[0])
-            )()
+            hdr = self._pagination_headers(pagination)[0]
+            return self._response.no_content(lambda *arg: ({}, hdr))()
 
         links_enabled = cap.config['AUTOCRUD_EXPORT_ENABLED'] is False \
             or qsqla.arguments.scalar.export not in request.args
@@ -267,7 +266,7 @@ class Service(MethodView):
             if qsqla.arguments.scalar.export in request.args:
                 filename = request.args.get(qsqla.arguments.scalar.export)
                 filename = filename or "{}{}{}".format(
-                    self._model.__name__,
+                    model.__name__,
                     "_{}".format(page) if page else "",
                     "_{}".format(limit) if limit else ""
                 )
@@ -289,9 +288,9 @@ class Service(MethodView):
     def _response_with_etag(self, builder, data, etag):
         """
 
-        :param builder:
-        :param data:
-        :param etag:
+        :param builder: response builder
+        :param data: response list: status, header, body
+        :param etag: etag string
         :return:
         """
         response = self._response.build_response(builder, data)
@@ -303,6 +302,7 @@ class Service(MethodView):
 
     def _validate_new_data(self):
         """
+        validates new json resource object
 
         :return:
         """
@@ -324,7 +324,7 @@ class Service(MethodView):
     def _add_resource(cls, resource):
         """
 
-        :param resource:
+        :param resource: resource object
         :return:
         """
         session = cls._db.session
@@ -338,8 +338,8 @@ class Service(MethodView):
     def _merge_resource(cls, resource, data):
         """
 
-        :param resource:
-        :param data:
+        :param resource: resource object
+        :param data: payload
         :return:
         """
         session = cls._db.session
@@ -354,7 +354,7 @@ class Service(MethodView):
     def _pagination_meta(cls, pagination):
         """
 
-        :param pagination:
+        :param pagination: pagination object
         :return:
         """
         args = Qs2Sqla(cls._model).arguments.scalar
@@ -363,21 +363,21 @@ class Service(MethodView):
         num_pages = pagination.num_pages
         page_size = pagination.page_size
 
-        def get_link(p):
+        def format_link(p):
             return "{}?{}={}&{}={}".format(request.path, args.page, p, args.limit, page_size)
 
         return dict(
-            first=get_link(1) if page_number > 1 else None,
-            last=get_link(num_pages) if page_number != num_pages else None,
-            next=get_link(page_number + 1) if page_number != num_pages else None,
-            prev=get_link(page_number - 1) if page_number != 1 else None
+            first=format_link(1) if page_number > 1 else None,
+            last=format_link(num_pages) if page_number != num_pages else None,
+            next=format_link(page_number + 1) if page_number != num_pages else None,
+            prev=format_link(page_number - 1) if page_number != 1 else None
         )
 
     @classmethod
     def _pagination_headers(cls, pagination):
         """
 
-        :param pagination:
+        :param pagination: pagination object
         :return:
         """
         code = status.SUCCESS
@@ -408,7 +408,7 @@ class Service(MethodView):
     def _link_header(resource=None, **kwargs):
         """
 
-        :param resource:
+        :param resource: model object
         :return:
         """
         links = []
@@ -431,7 +431,7 @@ class Service(MethodView):
     def _location_header(resource):
         """
 
-        :param resource:
+        :param resource: model object
         :return:
         """
         location = resource.links()
@@ -441,7 +441,7 @@ class Service(MethodView):
     def _compute_etag(cls, data):
         """
 
-        :param data:
+        :param data: payload
         :return:
         """
         if cap.config['AUTOCRUD_CONDITIONAL_REQUEST_ENABLED'] is True:
@@ -454,7 +454,7 @@ class Service(MethodView):
     def _check_etag(cls, data):
         """
 
-        :param data:
+        :param data: payload
         :return:
         """
         if cap.config['AUTOCRUD_CONDITIONAL_REQUEST_ENABLED'] is True:
