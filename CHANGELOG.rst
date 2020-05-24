@@ -1,6 +1,29 @@
 Release Notes
 ^^^^^^^^^^^^^
 
+Version 2.2.0
+-------------
+
+Released 2020-05-24
+
+* new _no_links params
+* add method override
+* support HEAD method for collection resources and search
+* add support to filter related resource on query string
+* added app factory
+* added Flask-Logify extension
+* refactored cli: changed options
+* added support to multiple wsgi
+* fix error handler response
+* removed app from members of class AutoCrud
+
+Version 2.1.2
+-------------
+
+Released 2020-05-01
+
+* fix setup issue
+
 Version 2.1.1
 -------------
 

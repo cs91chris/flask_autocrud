@@ -8,7 +8,7 @@ based on: `sqlalchemy-filters <https://pypi.org/project/sqlalchemy-filters>`__
 `Flask-ErrorsHandler <https://pypi.org/project/Flask-ErrorsHandler>`__
 
 Automatically generate a RESTful APIs for CRUD operation and advanced search on a database.
-If a list of ``Model`` is not provided, all tables are affected, instead you can customize:
+If a list of ``Model`` is not provided, all tables are affected, otherwise you can customize:
 
 - resource name
 - fields name
@@ -26,7 +26,7 @@ Features
 - filtering, sorting and pagination
 - customizable responses via query string
 - custom FETCH method for advanced search
-- JSON and XML response based on Accept header
+- content negotiation based on Accept header
 - export to csv available
 - meta resource description
 - cli tool to run autocrud on a database
@@ -38,7 +38,7 @@ Install ``flask_autocrud`` using ``pip``:
 
 ::
 
-	$ pip install Flask-AutoCRUD
+    $ pip install Flask-AutoCRUD
 
 
 .. _section-1:
@@ -74,9 +74,9 @@ If you want to see an example use with Flask-Admin see in example folder.
 Filtering and Sorting
 ^^^^^^^^^^^^^^^^^^^^^
 
-Add filters as query string parameters, they are used in AND. NOTE: At this time OR operator are not implemented.
+Add filters as query string parameters, they are applied in AND, OR operator not supported.
 
-You can use entity fields as parameter with the following placeholders:
+You can use entity fields as parameter with the following placeholders in the value:
 
 - null value: ``null``
 - in operator: list separated by ``;``
@@ -86,79 +86,95 @@ You can use entity fields as parameter with the following placeholders:
   NOTE first % are not used in expression, it only indicated that value must be used with like operator.
 
 
-Other parameters:
+Other parameters, note that all starts with ``_``:
 
 - Use ``_fields`` parameter to get only the fields listed as value, separated by ``;``.
 - Use ``_limit`` and ``_page`` parameters for pagination.
 - Sorting is implemented with ``_sort`` parameter. The value is a list of field separated by `;`
   You can prepend ``-`` to reverse order.
-- Use ``_export`` parameter to export data into csv format.
-- Use ``_extended`` in order to fetch data of related resources.
-- Use ``_as_table`` in order to flatten nested dict useful if you want render response as table
+- Use ``_export`` parameter to export data into csv format with file name passed as value or leave empty for default.
+  You can also use ``Accept:text/csv`` header, but it has a different behavior because the transformation is applied at the
+  end of response.
+- Use ``_related`` in order to fetch data of related resources listed as value separated by ``;`` or leave empty if
+  you want all. Added in 2.2.0 in previous release use ``_extended`` with no filters.
+- Use ``_as_table`` in order to flatten nested dict useful if you want render response as table in combination with
+  response in html format or simply if you do not want nested json (no value required).
+- With ``_no_links`` links of related data and pages are filtered (no value required).
 
 Example requests:
 
 - ``/invoice?InvoiceId=(35;344)``
 
-- ``/invoice?Total=__lte__10&sort=Total``
+- ``/invoice?Total=__lte__10&_sort=Total``
 
-- ``/invoice?fields=BillingCountry;Total;InvoiceId&InvoiceId=!355;344&sort=-InvoiceId``
+- ``/invoice?_fields=BillingCountry;Total;InvoiceId&InvoiceId=!355;344&_sort=-InvoiceId``
 
-- ``/invoice?fields=Total;InvoiceId&BillingPostalCode=!null&BillingCountry=%%ermany``
+- ``/invoice?_fields=Total;InvoiceId&BillingPostalCode=!null&BillingCountry=%%ermany``
 
-- ``/invoice?fields=Total;InvoiceDate;InvoiceId;CustomerId&page=2&limit=10``
+- ``/invoice?_fields=Total;InvoiceDate;InvoiceId;CustomerId&_page=2&_limit=10``
 
 - ``/invoice?InvoiceDate=(2009-01-01;2009-02-01 00:00:00)``
 
+- ``/track?_related=Album;Genre``
 
-Example FETCH:
 
-.. code:: bash
+Custom method FETCH
+^^^^^^^^^^^^^^^^^^^
 
-    curl --request FETCH \
-        --url http://127.0.0.1:5000/customer \
-        --header 'content-type: application/json' \
-        --data '{
-            "fields": [
-                "Address",
-                "City"
+FETCH request is like a GET collection resources with a body that represents the filters to apply. It differs from
+filters in query string because there are used to reduce the response (filters are in AND), here are used to
+produce a search response, in fact you can request and filter data of combined related resources (like sql JOIN) and
+use OR operator with a simple syntax.
+
+See: `sqlalchemy-filters <https://github.com/juliotrigo/sqlalchemy-filters>`__ documentation for filters explanation
+and more examples.
+
+If you are unable to use FETCH, you can use POST method with header: ``X-HTTP-Method-Override: FETCH``. If you
+want only headers and not response use header: ``X-HTTP-Method-Override: HEAD``.
+
+The following is an example of body request on ``/customer``:
+
+.. code:: json
+
+    {
+        "fields": [
+            "Address",
+            "City"
+        ],
+        "related": {
+            "Employee": [
+                "FirstName",
+                "LastName"
             ],
-            "related": {
-                "Employee": [
-                    "FirstName",
-                    "LastName"
-                ],
-                "Invoice": [
-                    "*"
-                ]
+            "Invoice": ["*"]
+        },
+        "filters": [
+            {
+                "model": "Customer",
+                "field": "SupportRepId",
+                "op": "==",
+                "value": 5
             },
-            "filters": [
-                {
-                    "model": "Customer",
-                    "field": "SupportRepId",
-                    "op": "==",
-                    "value": 5
-                },
-                {
-                    "model": "Invoice",
-                    "field": "Total",
-                    "op": ">",
-                    "value": 6
-                }
-            ],
-            "sorting": [
-                {
-                    "model": "Invoice",
-                    "field": "Total",
-                    "direction": "asc"
-                },
-                {
-                    "model": "Customer",
-                    "field": "Address",
-                    "direction": "desc"
-                }
-            ]
-        }'
+            {
+                "model": "Invoice",
+                "field": "Total",
+                "op": ">",
+                "value": 6
+            }
+        ],
+        "sorting": [
+            {
+                "model": "Invoice",
+                "field": "Total",
+                "direction": "asc"
+            },
+            {
+                "model": "Customer",
+                "field": "Address",
+                "direction": "desc"
+            }
+        ]
+    }
 
 .. _section-3:
 
@@ -166,30 +182,29 @@ AutoCRUD cli
 ^^^^^^^^^^^^
 
 You can use autocrud as a standalone application configurable via yaml file.
-Some options could be given via cli see: ``autocrud -h``,
-but if configuration file is given these options will be ignored.
+Some options could be given via cli see: ``autocrud --help``.
 
-If ``gunicorn`` is installed on your system it will be chosen as wsgi http server
-otherwise the default Flask builtin simple server will be used.
-Under windows you can install ``waitress``.
+From release 2.2.0 multiple wsgi server can be used,
+instead in previous release only gunicorn or waitress can be used;
+in addition cli options are changed.
 
 Configuration file contains 2 principal macro section:
 
 - app: every configuration under it will be passed to Flask config object
-- wsgi: every configuration under it will be passed to the chosen wsgi
+- wsgi: every configuration under it will be passed to the chosen wsgi server
 
 
 For example:
 
 .. code:: yaml
 
-	app:
-	  SQLALCHEMY_DATABASE_URI: sqlite+pysqlite:///examples/db.sqlite3
-	  SQLALCHEMY_TRACK_MODIFICATIONS: false
-	wsgi:
-	  bind: localhost:5000
-	  workers: 1
-	  threads: 1
+    app:
+      SQLALCHEMY_DATABASE_URI: sqlite+pysqlite:///examples/db.sqlite3
+      SQLALCHEMY_TRACK_MODIFICATIONS: false
+    wsgi:
+      bind: localhost:5000
+      workers: 1
+      threads: 1
 
 
 .. _section-4:
@@ -210,5 +225,14 @@ Configuration
 11. ``AUTOCRUD_EXPORT_ENABLED``: *(default True)* enable or disable export to csv
 12. ``AUTOCRUD_DATABASE_SCHEMA``: *(default None)* database schema to consider
 13. ``AUTOCRUD_CONDITIONAL_REQUEST_ENABLED``: *(default True)* allow conditional request
+
+
+TODO
+^^^^
+
+* automatic swagger ui or alternative api docs
+
+
+Feedback and contributions are welcome.
 
 License MIT
