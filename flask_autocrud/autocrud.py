@@ -1,9 +1,9 @@
-from flask import Blueprint
+import flask
 from flask_errors_handler import ErrorHandler
 from flask_response_builder import ResponseBuilder
 from sqlalchemy.ext.automap import automap_base
 
-from .config import set_default_config
+from .config import HttpStatus, set_default_config
 from .model import Model
 from .service import Service
 
@@ -74,23 +74,25 @@ class AutoCrud(object):
         :return:
         """
         self._db = db
-        self._response_builder = builder or ResponseBuilder()
-        self._response_error = error or ErrorHandler(
-            response=self.response_builder.on_accept()
-        )
+        self._response_error = error
+        self._response_builder = builder
 
-        if not isinstance(self._response_builder, ResponseBuilder):
+        if builder and not isinstance(builder, ResponseBuilder):
             raise AttributeError("'builder' must be instance of '{}'".format(ResponseBuilder))
-
-        if not isinstance(self._response_error, ErrorHandler):
+        if error and not isinstance(error, ErrorHandler):
             raise AttributeError("'error' must be instance of '{}'".format(ErrorHandler))
 
+        if not self._response_builder:
+            self._response_builder = ResponseBuilder()
+            self._response_builder.init_app(app)
+        if not self._response_error:
+            self._response_error = ErrorHandler()
+            self._response_error.init_app(app, response=self._response_builder.on_accept())
+
         set_default_config(app)
-        self._response_builder.init_app(app)
-        self._response_error.init_app(app, response=self._response_builder.on_accept())
 
         subdomain = app.config['AUTOCRUD_SUBDOMAIN']
-        self._api = Blueprint('flask_autocrud', __name__, subdomain=subdomain)
+        self._api = flask.Blueprint('flask_autocrud', __name__, subdomain=subdomain)
 
         if models is not None:
             for m in models:
@@ -182,6 +184,9 @@ class AutoCrud(object):
         @self._api.route(url)
         @self.response_builder.on_accept()
         def index():
+            if not self._models:
+                flask.abort(HttpStatus.NOT_FOUND, 'no resources available')
+
             return {
                 res: "{}{{/{}}}".format(cls.__url__, cls.primary_key_field())
                 for res, cls in self._models.items()

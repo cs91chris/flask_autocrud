@@ -89,11 +89,12 @@ setup(
     install_requires=[
         'Flask >= 1.0.4',
         'Flask-SQLAlchemy >= 2.4',
+        'Flask-Logify >= 1.2',
         'Flask-ResponseBuilder >= 2.0.9',
         'Flask-ErrorsHandler >= 3',
         'sqlalchemy-filters >= 0.11',
         'colander >= 1.7',
-        'PyYAML'
+        'PyYAML',
     ],
     cmdclass={'test': PyTest},
     test_suite='tests',

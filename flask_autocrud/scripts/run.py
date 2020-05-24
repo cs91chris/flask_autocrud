@@ -1,4 +1,5 @@
 import os
+import sys
 
 import click
 import yaml
@@ -28,14 +29,18 @@ def create_app(config=None):
     db = SQLAlchemy(app)
     builder = ResponseBuilder(app)
     error = ErrorHandler(app, response=builder.on_accept())
-    AutoCrud(app, db, builder=builder, error=error)
+    autocrud = AutoCrud(app, db, builder=builder, error=error)
 
+    for m in autocrud.models.keys():
+        app.logger.info('Registered resource: {}'.format(m))
+
+    error.api_register(app)
     return app
 
 
 @click.command()
 @click.option('-v', '--verbose', is_flag=True, flag_value=True, default=False, help='enable debug mode')
-@click.option('-d', '--database', required=True, help='database string connection')
+@click.option('-d', '--database', default=None, help='database string connection')
 @click.option('-c', '--config', default=None, help='app yaml configuration file')
 @click.option('-l', '--log-config', default=None, help='alternative log yaml configuration file')
 @click.option('-w', '--wsgi-server', default=None, type=wsgi_types, help='name of wsgi server to use')
@@ -56,10 +61,13 @@ def main(database, config, log_config, bind, verbose, wsgi_server):
             with open(config) as f:
                 config = yaml.safe_load(f)
         except (OSError, YAMLError) as e:
-            import sys
             print(e, file=sys.stderr)
             sys.exit(1)
     else:
+        if database is None:
+            print('-d is required if no config file provided', file=sys.stderr)
+            sys.exit(1)
+
         env = os.environ.get('FLASK_ENV')
         config = dict(
             app={
@@ -77,8 +85,12 @@ def main(database, config, log_config, bind, verbose, wsgi_server):
     if log_config is not None:
         config['app']['LOG_FILE_CONF'] = log_config
 
+    # verbose flag overrides config file
+    if verbose is True:
+        config['app']['DEBUG'] = True
+
     app = create_app(config.get('app'))
-    Standalone = wsgi_factory(wsgi_server if wsgi_server else 'builtin')
+    Standalone = wsgi_factory(wsgi_server or 'builtin')
     Standalone(app, options=config.get('wsgi')).run()
 
 
