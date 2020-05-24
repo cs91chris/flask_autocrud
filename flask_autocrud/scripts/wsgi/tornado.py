@@ -1,9 +1,6 @@
-try:
-    from tornado.ioloop import IOLoop
-    from tornado.wsgi import WSGIContainer
-    from tornado.httpserver import HTTPServer
-except ImportError:
-    raise ImportError('tornado not installed') from None
+from tornado.httpserver import HTTPServer
+from tornado.ioloop import IOLoop
+from tornado.wsgi import WSGIContainer
 
 from .base import BaseApplication
 
@@ -22,5 +19,5 @@ class WSGITornado(BaseApplication):
         """
 
         """
-        self._http_server.listen()
-        IOLoop.instance().start()
+        self._http_server.listen(address=self._interface, port=self._port)
+        IOLoop.current().start()

@@ -1,11 +1,7 @@
+from gunicorn.app.base import BaseApplication as WSGIServer
 from six import iteritems
 
 from .base import BaseApplication
-
-try:
-    from gunicorn.app.base import BaseApplication as WSGIServer
-except ImportError:
-    raise ImportError('gunicorn not installed') from None
 
 
 class WSGIGunicorn(BaseApplication, WSGIServer):
@@ -15,8 +11,8 @@ class WSGIGunicorn(BaseApplication, WSGIServer):
         :param app:
         :param options:
         """
-        super(BaseApplication, self).__init__()
-        super(WSGIServer, self).__init__()
+        BaseApplication.__init__(self, app, options)
+        WSGIServer.__init__(self)
 
     def load_config(self):
         """

@@ -1,9 +1,8 @@
-from .base import BaseApplication
 from multiprocessing import cpu_count
-try:
-    from waitress import serve
-except ImportError:
-    raise ImportError('waitress not installed') from None
+
+from waitress import serve
+
+from .base import BaseApplication
 
 
 class WSGIWaitress(BaseApplication):
@@ -12,8 +11,11 @@ class WSGIWaitress(BaseApplication):
 
         :return:
         """
+        self.options.setdefault('threads', cpu_count())
+
         serve(
             self.application,
-            listen=self.options.get('bind') or '127.0.0.1:5000',
-            threads=self.options.get('workers') or cpu_count()
+            host=self._interface,
+            port=self._port,
+            threads=self.options['threads'],
         )

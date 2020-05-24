@@ -1,7 +1,5 @@
-try:
-    from gevent.pywsgi import WSGIServer
-except ImportError:
-    raise ImportError('gevent not installed') from None
+from gevent.pywsgi import WSGIServer
+
 
 from .base import BaseApplication
 
@@ -14,16 +12,10 @@ class WSGIGevent(BaseApplication, WSGIServer):
         :param options:
         """
         BaseApplication.__init__(self, app, options)
-
-        try:
-            listener = self.options.get('bind').split(':')
-        except AttributeError:
-            listener = ('0.0.0.0', 5000)
-
-        WSGIServer.__init__(listener, self.app)
+        WSGIServer.__init__(self, (self._interface, self._port), self.application)
 
     def run(self):
         """
 
         """
-        WSGIGevent.run(self)
+        self.serve_forever()
