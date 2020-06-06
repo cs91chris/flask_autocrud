@@ -18,20 +18,6 @@ class Qs2Sqla:
         self._syntax = syntax or config.default_syntax
         self._arguments = arguments or config.default_arguments
 
-        if self._syntax and not isinstance(self._syntax, config.Syntax):
-            raise AttributeError(
-                "'{}' must be an instance of {}".format(
-                    self._syntax.__name__, config.Syntax.__name__
-                )
-            )
-
-        if self._arguments and not issubclass(self._arguments, config.Fields):
-            raise AttributeError(
-                "'{}' must be a subclass of {}".format(
-                    self._arguments.__name__, config.Fields.__name__
-                )
-            )
-
     @property
     def syntax(self):
         """
@@ -212,10 +198,7 @@ class Qs2Sqla:
                 invalid.append(k)
 
         if len(invalid) == 0 and len(fields) > 0:
-            try:
-                query = sqlaf.apply_loads(query, fields)
-            except exceptions.BadLoadFormat:
-                invalid.append(fields)
+            query = sqlaf.apply_loads(query, fields)
 
         for k in related.keys():
             instance, columns = model.related(k, pk_only=kwargs.get('pk_only'))
@@ -229,7 +212,7 @@ class Qs2Sqla:
                 else:
                     _columns = columns
 
-                query = query.join(instance, aliased=False)
+                query = query.join(instance, aliased=False, isouter=True)
                 query = query.options(contains_eager(instance).load_only(*_columns))
             except ArgumentError:
                 invalid += _columns
@@ -246,29 +229,17 @@ class Qs2Sqla:
             try:
                 if resource:
                     _, cols = self._model.related(resource)
-                    if cols and cols.get(flt.get('field')) is None:
-                        raise exceptions.FieldNotFound
 
                 return action(stm, flt)
-            except exceptions.BadSpec:
-                invalid.append(resource)
             except exceptions.FieldNotFound:
                 invalid.append(flt.get('field'))
-            except exceptions.BadFilterFormat:
-                invalid.append(flt.get('op'))
             except exceptions.BadSortFormat:
                 invalid.append(flt.get('direction'))
 
         for f in filters:
-            try:
-                query = apply(query, f, sqlaf.apply_filters)
-            except AttributeError:
-                invalid.append(f)
+            query = apply(query, f, sqlaf.apply_filters)
 
         for s in sort:
-            try:
-                query = apply(query, s, sqlaf.apply_sort)
-            except AttributeError:
-                invalid.append(s)
+            query = apply(query, s, sqlaf.apply_sort)
 
         return query, invalid
