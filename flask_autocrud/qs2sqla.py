@@ -201,7 +201,7 @@ class Qs2Sqla:
             query = sqlaf.apply_loads(query, fields)
 
         for k in related.keys():
-            instance, columns = model.related(k, pk_only=kwargs.get('pk_only'))
+            instance, columns = model.related(k)
             _columns = related.get(k)
             try:
                 if len(_columns) > 0 and _columns[0] != self._syntax.ALL:

@@ -47,7 +47,6 @@ class Model(object):
 
         """
         cls.__rels__ = {}
-        pk_only = kwargs.get('pk_only') or False
 
         for r in inspect(cls).relationships:
             try:
@@ -56,12 +55,12 @@ class Model(object):
                 rel = r.argument
 
             key = rel.__name__
-            columns = rel().columns(pk_only and r.uselist)
+            columns = rel().columns()
             instance = getattr(cls, r.key)
             cls.__rels__.update({key: dict(instance=instance, columns=columns)})
 
     @classmethod
-    def columns(cls, pk_only=False):
+    def columns(cls):
         """
 
         :return:
@@ -69,7 +68,7 @@ class Model(object):
         if cls.__cols__ is None:
             cls._load_columns()
 
-        return cls.__pks__ if pk_only else cls.__cols__
+        return cls.__cols__
 
     @classmethod
     def required(cls):
