@@ -173,7 +173,7 @@ class Service(MethodView):
             related.update({k: "*" for k in model_related})
 
         if resource_id is not None:
-            query, _ = qsqla.dict2sqla(dict(filters=filter_by_id, related=related))
+            query, _ = qsqla.dict2sqla(dict(filters=filter_by_id, related=related), isouter=True)
 
             if subresource is None:
                 resource = query.one_or_none()
@@ -199,7 +199,7 @@ class Service(MethodView):
                 data['filters'] += filter_by_id
 
         return self._build_response_list(
-            model, builder, {**data, 'related': related}, error, pk_only=True,
+            model, builder, {**data, 'related': related}, error, pk_only=True, isouter=True,
             only_head=(resource_id is None and flask.request.method == 'HEAD')
         )
 
@@ -249,7 +249,7 @@ class Service(MethodView):
         )
         invalid += error
 
-        query, error = qsqla.dict2sqla(data, pk_only=kwargs.get('pk_only'))
+        query, error = qsqla.dict2sqla(data, **kwargs)
         invalid += error
 
         if len(invalid) > 0:

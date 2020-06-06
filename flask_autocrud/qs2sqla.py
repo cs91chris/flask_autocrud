@@ -212,7 +212,7 @@ class Qs2Sqla:
                 else:
                     _columns = columns
 
-                query = query.join(instance, aliased=False, isouter=True)
+                query = query.join(instance, aliased=False, isouter=kwargs.get('isouter'))
                 query = query.options(contains_eager(instance).load_only(*_columns))
             except ArgumentError:
                 invalid += _columns
