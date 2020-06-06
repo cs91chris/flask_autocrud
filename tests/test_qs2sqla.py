@@ -1,7 +1,6 @@
 import pytest
 
-from . import create_app
-from . import assert_pagination
+from . import assert_pagination, create_app
 
 
 @pytest.fixture
@@ -55,7 +54,7 @@ def test_extended_list(client):
     tracks = 'TrackList'
     data = res.get_json()
     assert data[tracks][0].get('_links') is not None
-    assert all(isinstance(data[tracks][0][e], dict) for e in (
+    assert all(isinstance(data[tracks][3][e], dict) for e in (
         "Album",
         "Genre",
         "MediaType"

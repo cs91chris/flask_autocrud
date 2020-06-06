@@ -1,9 +1,7 @@
 import pytest
 
 from . import create_app
-
-from .models import artists
-from .models import albums
+from .models import albums, artists
 
 
 @pytest.fixture
@@ -216,6 +214,12 @@ def test_hidden_field(client):
     data = res.get_json()
     assert data['id'] == 5
     assert len(data.keys()) == 3
+
+    res = client.get('/myalbum?_fields=title;__dict__')
+    assert res.status_code == 400
+
+    data = res.get_json()
+    assert data['response']['invalid'] == ['title', '__dict__']
 
     res = client.get('/myalbum/meta')
     assert res.status_code == 200

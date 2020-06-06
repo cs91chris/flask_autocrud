@@ -76,7 +76,7 @@ class Qs2Sqla:
                 return False
 
         invalid = []
-        max_limit = valid_number(max_limit)
+        max_limit = valid_number(max_limit) or 0
         page = valid_number(conf.get(self._arguments.scalar.page))
         limit = valid_number(conf.get(self._arguments.scalar.limit))
 
@@ -84,8 +84,6 @@ class Qs2Sqla:
             invalid.append(self._arguments.scalar.page)
         if limit is False:
             invalid.append(self._arguments.scalar.limit)
-        if max_limit is False:
-            invalid.append('invalid max_limit: {}'.format(max_limit))
 
         if max_limit > 0:
             page = 1 if not page else page
@@ -201,8 +199,12 @@ class Qs2Sqla:
             query = sqlaf.apply_loads(query, fields)
 
         for k in related.keys():
-            instance, columns = model.related(k)
             _columns = related.get(k)
+            instance, columns = model.related(k)
+            if instance is None:
+                invalid.append(k)
+                continue
+
             try:
                 if len(_columns) > 0 and _columns[0] != self._syntax.ALL:
                     _invalid = list(set(related.get(k)) - set(columns))

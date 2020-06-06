@@ -1,9 +1,8 @@
-import pytest
 import flask
-
+import pytest
 from flask_errors_handler import ErrorHandler
-from . import create_app
-from . import assert_export
+
+from . import assert_export, create_app
 
 
 @pytest.fixture
@@ -26,6 +25,7 @@ def test_app_runs(client):
     assert isinstance(autocrud.blueprint, flask.Blueprint)
     assert isinstance(autocrud.error_handler, ErrorHandler)
     assert isinstance(autocrud.models, dict)
+
     for m in autocrud.models.values():
         assert print(m()) is None
         assert isinstance(m.searchable(), list)
@@ -253,6 +253,24 @@ def test_export(client):
     assert_export(res, 'pippo')
 
 
+def test_related_without_resource(client):
+    res = client.get('/track/2?_related')
+    assert res.status_code == 200
+
+    data = res.get_json()
+    assert data['TrackId'] == 2
+    assert data['AlbumId'] is None
+    assert data['_links']['Album'] == '/track/2/album'
+    assert data['_links']['InvoiceLine'] == '/track/2/invoiceline'
+    assert data['_links']['MediaType'] == '/track/2/mediatype'
+    assert data['_links']['Playlist'] == '/track/2/playlist'
+    assert data['_links']['Genre'] == '/track/2/genre'
+
+    res = client.get('/track/2/album')
+    assert res.status_code == 200
+    assert res.headers['Pagination-Count'] == '0'
+
+
 def test_subresource(client):
     res = client.get('/album/5/track?_related')
     assert res.status_code == 200
@@ -270,3 +288,11 @@ def test_subresource(client):
 
     res = client.get('/album/5/notfound')
     assert res.status_code == 404
+
+    res = client.get('/track/2/invoiceline')
+    assert res.status_code == 200
+
+    data = res.get_json()['InvoiceLineList'][0]
+    assert data['TrackId'] == 2
+    assert data['_links']['Invoice'] == '/invoiceline/1/invoice'
+    assert data['_links']['Track'] == '/invoiceline/1/track'

@@ -1,8 +1,6 @@
 import pytest
 
-from . import create_app
-from . import assert_export
-from . import assert_pagination
+from . import assert_export, assert_pagination, create_app
 
 
 @pytest.fixture
