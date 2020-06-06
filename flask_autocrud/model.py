@@ -1,6 +1,4 @@
 from sqlalchemy.inspection import inspect
-from sqlalchemy.orm.mapper import Mapper
-from sqlalchemy.orm.properties import ColumnProperty
 
 from .config import ALLOWED_METHODS
 
@@ -36,10 +34,12 @@ class Model(object):
         for i in cls.__dict__:
             if not (i.startswith('_') or i in cls.__hidden__):
                 col = getattr(cls, i)
-                if isinstance(col.comparator, ColumnProperty.Comparator):
-                    cls.__cols__[i] = col
+                try:
                     if col.primary_key:
                         cls.__pks__.append(i)
+                    cls.__cols__[i] = col
+                except AttributeError:
+                    pass
 
     @classmethod
     def _load_related(cls, **kwargs):
@@ -149,9 +149,13 @@ class Model(object):
         :return:
         """
         for r in inspect(cls).relationships:
-            if isinstance(r.argument, Mapper):
-                if r.argument.class_.__url__ == url:
-                    return r.argument.class_
+            try:
+                rel = r.argument.class_
+            except AttributeError:
+                rel = r.argument
+
+            if rel.__url__ == url:
+                return rel
 
     @classmethod
     def validate(cls, data):
@@ -175,7 +179,10 @@ class Model(object):
         fields = []
 
         for r in inspect(cls).relationships:
-            rel = r.argument.class_ if r.uselist else r.argument
+            try:
+                rel = r.argument.class_
+            except AttributeError:
+                rel = r.argument
             related.update({rel.__name__: rel.__url__})
 
         for col, c in cls.columns().items():
@@ -231,18 +238,14 @@ class Model(object):
         """
         link_dict = dict(self=self.resource_uri())
         for r in inspect(self.__class__).relationships:
-            if isinstance(r.argument, Mapper):
-                if r.uselist:
-                    key = r.argument.class_.__name__
-                    link_dict[key] = "{}{}".format(
-                        self.resource_uri(),
-                        r.argument.class_.__url__
-                    )
-                else:
-                    instance = getattr(self, r.key)
-                    if instance:
-                        key = r.argument.__name__
-                        link_dict[key] = instance.resource_uri()
+            try:
+                key = r.argument.class_.__name__
+                url = r.argument.class_.__url__
+            except AttributeError:
+                key = r.argument.__name__
+                url = r.argument.__url__
+
+            link_dict[key] = "{}{}".format(self.resource_uri(), url)
 
         return link_dict
 
