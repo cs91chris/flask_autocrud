@@ -77,11 +77,6 @@ class AutoCrud(object):
         self._response_error = error
         self._response_builder = builder
 
-        if builder and not isinstance(builder, ResponseBuilder):
-            raise AttributeError("'builder' must be instance of '{}'".format(ResponseBuilder))
-        if error and not isinstance(error, ErrorHandler):
-            raise AttributeError("'error' must be instance of '{}'".format(ErrorHandler))
-
         if not self._response_builder:
             self._response_builder = ResponseBuilder()
             self._response_builder.init_app(app)
@@ -97,7 +92,7 @@ class AutoCrud(object):
         if models is not None:
             for m in models:
                 if not issubclass(m, (db.Model, Model)):
-                    raise AttributeError(
+                    raise ValueError(
                         "'{}' must be both a subclass of {} and of {}".format(m, db.Model, Model)
                     )
                 self._register_model(m, app.config, **kwargs)
@@ -187,7 +182,8 @@ class AutoCrud(object):
             if not self._models:
                 flask.abort(HttpStatus.NOT_FOUND, 'no resources available')
 
-            return {
-                res: "{}{{/{}}}".format(cls.__url__, cls.primary_key_field())
-                for res, cls in self._models.items()
-            }
+            response = {}
+            for res, cls in self._models.items():
+                response[res] = cls.__url__
+
+            return response
