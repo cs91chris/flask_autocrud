@@ -1,6 +1,8 @@
 Flask-AutoCRUD
 ==============
 
+|download| |version|
+
 Inspired by: `sandman2 <https://github.com/jeffknupp/sandman2>`__
 
 based on: `sqlalchemy-filters <https://pypi.org/project/sqlalchemy-filters>`__
@@ -236,3 +238,7 @@ TODO
 Feedback and contributions are welcome.
 
 License MIT
+
+
+.. |download| image:: https://pypip.in/download/flask_autocrud/badge.png
+.. |version| image:: https://pypip.in/version/flask_autocrud/badge.png

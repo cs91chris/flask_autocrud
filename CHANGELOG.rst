@@ -1,6 +1,17 @@
 Release Notes
 ^^^^^^^^^^^^^
 
+Version 2.2.1
+-------------
+
+Released 2020-06-06
+
+* improved tests
+* removed pk_only: not very useful
+* fix missing related resource
+* add left join to related resource to avoid not found error
+* bug fix on meta description
+
 Version 2.2.0
 -------------
 
