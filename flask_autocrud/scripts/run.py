@@ -2,6 +2,7 @@ import os
 import sys
 
 import click
+from colorama import just_fix_windows_console  # https://github.com/tartley/colorama
 import yaml
 from flask import Flask
 from flask_errors_handler import ErrorHandler
@@ -56,6 +57,7 @@ def main(database, config, log_config, bind, verbose, wsgi_server):
     :param wsgi_server: wsgi server chose
     :return: never returns
     """
+    just_fix_windows_console() # safe to call on non-windows
     if config is not None:
         try:
             with open(config) as f:
