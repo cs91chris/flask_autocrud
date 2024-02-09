@@ -87,14 +87,19 @@ setup(
         'pytest-cov >= 2'
     ],
     install_requires=[
-        'Flask >= 1.0.4',
-        'Flask-SQLAlchemy >= 2.4',
+        'itsdangerous==2.0.1',
+        'jinja2==3.0.3',
+        'Werkzeug==1.0.1',
+        'Flask==1.1.2',
+        'Flask-SQLAlchemy==2.4.4',
+        'SQLAlchemy==1.3.20',
         'Flask-Logify >= 1.2',
         'Flask-ResponseBuilder >= 2.0.9',
         'Flask-ErrorsHandler >= 3',
         'sqlalchemy-filters >= 0.11',
         'colander >= 1.7',
         'PyYAML',
+        'Flask-Admin>=1.5.37',  # for demo in examples directory
     ],
     cmdclass={'test': PyTest},
     test_suite='tests',
