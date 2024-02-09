@@ -3,6 +3,8 @@ from flask import Flask
 from flask_admin import Admin
 from flask_admin.contrib.sqla import ModelView
 
+from colorama import just_fix_windows_console  # https://github.com/tartley/colorama
+
 from flask_autocrud import AutoCrud
 from flask_sqlalchemy import SQLAlchemy
 
@@ -16,6 +18,7 @@ class CustomAdminView(ModelView):
 
 
 def main():
+    just_fix_windows_console() # safe to call on non-windows  - potentially a Flask bug?
     app = Flask(__name__)
     app.config['SECRET_KEY'] = 'more_difficult_string'
     app.config['FLASK_ADMIN_SWATCH'] = 'cosmo'
